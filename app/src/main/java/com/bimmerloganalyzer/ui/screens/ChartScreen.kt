@@ -1,10 +1,9 @@
 package com.bimmerloganalyzer.ui.screens
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FolderOpen
@@ -23,6 +22,7 @@ import com.bimmerloganalyzer.ui.theme.*
 import com.bimmerloganalyzer.viewmodel.ChartType
 import com.bimmerloganalyzer.viewmodel.MainViewModel
 import com.github.mikephil.charting.data.Entry
+import java.time.LocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,22 +30,28 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
     val selectedChart by viewModel.selectedChartType.collectAsState()
     val points = remember(session) { session.sampledPoints() }
     val fullThrottle = remember(session) { session.fullThrottlePoints() }
+    val startTime = session.startTime  // nullable LocalDateTime
 
     Scaffold(
         topBar = {
             TopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, "Back")
-                    }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "Back") }
                 },
                 title = {
                     Column {
-                        Text(session.fileName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        // Primary label: datetime or filename
                         Text(
-                            "%.1fs · %.0f km/h · %.0f Nm · %.0f PS".format(
-                                session.durationSec, session.maxSpeedKmh,
-                                session.maxTorqueNm, session.maxPowerPs
+                            session.displayLabel,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                        )
+                        // Stats subtitle
+                        Text(
+                            "%.0f km/h · %.0f Nm · %.0f PS · %.0f RPM".format(
+                                session.maxSpeedKmh, session.maxTorqueNm,
+                                session.maxPowerPs, session.maxRpm,
                             ),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(0.6f),
@@ -54,7 +60,7 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
                 },
                 actions = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.FolderOpen, "Open another file")
+                        Icon(Icons.Filled.FolderOpen, "เปิดไฟล์อื่น")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -63,18 +69,12 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
             )
         }
     ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // Chart type selector
+        Column(Modifier.fillMaxSize().padding(padding)) {
+
             ChartTypeSelector(selected = selectedChart, onSelect = viewModel::selectChart)
 
-            // Stats summary
             StatsSummaryRow(session)
 
-            // The chart
             Box(
                 Modifier
                     .weight(1f)
@@ -82,13 +82,25 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
                     .padding(8.dp)
             ) {
                 when (selectedChart) {
-                    ChartType.SPEED_TIME -> SpeedTimeChart(points)
-                    ChartType.TORQUE_TIME -> TorqueTimeChart(points)
-                    ChartType.POWER_TIME -> PowerTimeChart(points)
+                    ChartType.SPEED_TIME -> SpeedTimeChart(points, startTime)
+                    ChartType.TORQUE_TIME -> TorqueTimeChart(points, startTime)
+                    ChartType.POWER_TIME -> PowerTimeChart(points, startTime)
                     ChartType.DYNO_CURVE -> DynoCurveChart(fullThrottle)
-                    ChartType.BOOST_TIME -> BoostTimeChart(points)
-                    ChartType.TEMP_TIME -> TempTimeChart(points)
+                    ChartType.BOOST_TIME -> BoostTimeChart(points, startTime)
+                    ChartType.TEMP_TIME -> TempTimeChart(points, startTime)
                 }
+            }
+
+            // X-axis info footer
+            if (startTime != null) {
+                Text(
+                    "แกน X = เวลาจริง  เริ่มต้น ${session.shortLabel}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(0.4f),
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(bottom = 6.dp),
+                )
             }
         }
     }
@@ -104,20 +116,15 @@ private fun ChartTypeSelector(selected: ChartType, onSelect: (ChartType) -> Unit
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        val tabs = listOf(
+        listOf(
             ChartType.SPEED_TIME to "Speed",
             ChartType.TORQUE_TIME to "Torque",
             ChartType.POWER_TIME to "Power",
             ChartType.DYNO_CURVE to "Dyno",
             ChartType.BOOST_TIME to "Boost",
             ChartType.TEMP_TIME to "Temp",
-        )
-        tabs.forEach { (type, label) ->
-            FilterChip(
-                selected = selected == type,
-                onClick = { onSelect(type) },
-                label = { Text(label) },
-            )
+        ).forEach { (type, label) ->
+            FilterChip(selected = selected == type, onClick = { onSelect(type) }, label = { Text(label) })
         }
     }
 }
@@ -125,9 +132,7 @@ private fun ChartTypeSelector(selected: ChartType, onSelect: (ChartType) -> Unit
 @Composable
 private fun StatsSummaryRow(session: LogSession) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         StatChip("Max Speed", "%.0f km/h".format(session.maxSpeedKmh), BluePrimary)
@@ -148,61 +153,41 @@ private fun StatChip(label: String, value: String, color: androidx.compose.ui.gr
 // ── Individual charts ───────────────────────────────────────────────────────
 
 @Composable
-private fun SpeedTimeChart(points: List<OBDDataPoint>) {
+private fun SpeedTimeChart(points: List<OBDDataPoint>, startTime: LocalDateTime?) {
     OBDLineChart(
-        series = listOf(
-            ChartSeries(
-                "Speed (km/h)",
-                points.map { Entry(it.time, it.speedKmh) },
-                AndroidColor.parseColor("#1E90FF"),
-            )
-        ),
-        xLabel = "Time (s)",
+        series = listOf(ChartSeries("Speed (km/h)", points.map { Entry(it.time, it.speedKmh) }, AndroidColor.parseColor("#1E90FF"))),
+        xLabel = if (startTime != null) "เวลา" else "Time (s)",
         yLabel = "Speed (km/h)",
+        startTime = startTime,
         modifier = Modifier.fillMaxSize(),
     )
 }
 
 @Composable
-private fun TorqueTimeChart(points: List<OBDDataPoint>) {
+private fun TorqueTimeChart(points: List<OBDDataPoint>, startTime: LocalDateTime?) {
     OBDLineChart(
         series = listOf(
-            ChartSeries(
-                "Engine Torque (Nm)",
-                points.map { Entry(it.time, it.torqueNm) },
-                AndroidColor.parseColor("#00E676"),
-            ),
-            ChartSeries(
-                "RPM / 10",
-                points.map { Entry(it.time, it.rpm / 10f) },
-                AndroidColor.parseColor("#FF6D00"),
-                yAxisRight = true,
-            ),
+            ChartSeries("Torque (Nm)", points.map { Entry(it.time, it.torqueNm) }, AndroidColor.parseColor("#00E676")),
+            ChartSeries("RPM / 10", points.map { Entry(it.time, it.rpm / 10f) }, AndroidColor.parseColor("#FF6D00"), yAxisRight = true),
         ),
-        xLabel = "Time (s)",
+        xLabel = if (startTime != null) "เวลา" else "Time (s)",
         yLabel = "Torque (Nm)",
         yLabelRight = "RPM / 10",
+        startTime = startTime,
         modifier = Modifier.fillMaxSize(),
     )
 }
 
 @Composable
-private fun PowerTimeChart(points: List<OBDDataPoint>) {
+private fun PowerTimeChart(points: List<OBDDataPoint>, startTime: LocalDateTime?) {
     OBDLineChart(
         series = listOf(
-            ChartSeries(
-                "Power (PS)",
-                points.map { Entry(it.time, it.powerPs) },
-                AndroidColor.parseColor("#FF6D00"),
-            ),
-            ChartSeries(
-                "Power (bhp)",
-                points.map { Entry(it.time, it.powerBhp) },
-                AndroidColor.parseColor("#FF1744"),
-            ),
+            ChartSeries("Power (PS)", points.map { Entry(it.time, it.powerPs) }, AndroidColor.parseColor("#FF6D00")),
+            ChartSeries("Power (bhp)", points.map { Entry(it.time, it.powerBhp) }, AndroidColor.parseColor("#FF1744")),
         ),
-        xLabel = "Time (s)",
+        xLabel = if (startTime != null) "เวลา" else "Time (s)",
         yLabel = "Power",
+        startTime = startTime,
         modifier = Modifier.fillMaxSize(),
     )
 }
@@ -212,25 +197,16 @@ private fun DynoCurveChart(points: List<OBDDataPoint>) {
     if (points.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                "No full-throttle data found.\nFloor it to ≥95% throttle to see the dyno curve.",
-                color = MaterialTheme.colorScheme.onSurface.copy(0.5f),
+                "ยังไม่มีข้อมูล Full Throttle\nกดคันเร่ง ≥ 95% เพื่อเห็น Dyno Curve",
+                color = MaterialTheme.colorScheme.onSurface.copy(0.4f),
             )
         }
         return
     }
     OBDLineChart(
         series = listOf(
-            ChartSeries(
-                "Torque (Nm)",
-                points.map { Entry(it.rpm, it.torqueNm) },
-                AndroidColor.parseColor("#00E676"),
-            ),
-            ChartSeries(
-                "Power (PS)",
-                points.map { Entry(it.rpm, it.powerPs) },
-                AndroidColor.parseColor("#FF6D00"),
-                yAxisRight = true,
-            ),
+            ChartSeries("Torque (Nm)", points.map { Entry(it.rpm, it.torqueNm) }, AndroidColor.parseColor("#00E676")),
+            ChartSeries("Power (PS)", points.map { Entry(it.rpm, it.powerPs) }, AndroidColor.parseColor("#FF6D00"), yAxisRight = true),
         ),
         xLabel = "RPM",
         yLabel = "Torque (Nm)",
@@ -240,48 +216,30 @@ private fun DynoCurveChart(points: List<OBDDataPoint>) {
 }
 
 @Composable
-private fun BoostTimeChart(points: List<OBDDataPoint>) {
+private fun BoostTimeChart(points: List<OBDDataPoint>, startTime: LocalDateTime?) {
     OBDLineChart(
         series = listOf(
-            ChartSeries(
-                "Boost (bar)",
-                points.map { Entry(it.time, it.boostBar) },
-                AndroidColor.parseColor("#7C4DFF"),
-            ),
-            ChartSeries(
-                "Exhaust Pressure (bar)",
-                points.map { Entry(it.time, it.exhaustPressureBar) },
-                AndroidColor.parseColor("#FF4081"),
-            ),
+            ChartSeries("Boost (bar)", points.map { Entry(it.time, it.boostBar) }, AndroidColor.parseColor("#7C4DFF")),
+            ChartSeries("Exhaust (bar)", points.map { Entry(it.time, it.exhaustPressureBar) }, AndroidColor.parseColor("#FF4081")),
         ),
-        xLabel = "Time (s)",
+        xLabel = if (startTime != null) "เวลา" else "Time (s)",
         yLabel = "Pressure (bar)",
+        startTime = startTime,
         modifier = Modifier.fillMaxSize(),
     )
 }
 
 @Composable
-private fun TempTimeChart(points: List<OBDDataPoint>) {
+private fun TempTimeChart(points: List<OBDDataPoint>, startTime: LocalDateTime?) {
     OBDLineChart(
         series = listOf(
-            ChartSeries(
-                "Engine Temp (°C)",
-                points.map { Entry(it.time, it.engineTempC) },
-                AndroidColor.parseColor("#FF1744"),
-            ),
-            ChartSeries(
-                "Trans Temp (°C)",
-                points.map { Entry(it.time, it.transmissionTempC) },
-                AndroidColor.parseColor("#FF6D00"),
-            ),
-            ChartSeries(
-                "Ambient Temp (°C)",
-                points.map { Entry(it.time, it.ambientTempC) },
-                AndroidColor.parseColor("#1E90FF"),
-            ),
+            ChartSeries("Engine (°C)", points.map { Entry(it.time, it.engineTempC) }, AndroidColor.parseColor("#FF1744")),
+            ChartSeries("Trans (°C)", points.map { Entry(it.time, it.transmissionTempC) }, AndroidColor.parseColor("#FF6D00")),
+            ChartSeries("Ambient (°C)", points.map { Entry(it.time, it.ambientTempC) }, AndroidColor.parseColor("#1E90FF")),
         ),
-        xLabel = "Time (s)",
+        xLabel = if (startTime != null) "เวลา" else "Time (s)",
         yLabel = "Temperature (°C)",
+        startTime = startTime,
         modifier = Modifier.fillMaxSize(),
     )
 }
