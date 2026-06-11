@@ -7,6 +7,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bimmerloganalyzer.cloud.CloudFile
+import com.bimmerloganalyzer.cloud.CloudFolder
+import com.bimmerloganalyzer.cloud.CloudFolderContents
 import com.bimmerloganalyzer.cloud.GoogleDriveHelper
 import com.bimmerloganalyzer.cloud.OneDriveHelper
 import com.bimmerloganalyzer.data.CsvParser
@@ -24,15 +26,16 @@ sealed class UiState {
     data class Error(val message: String) : UiState()
 }
 
-sealed class CloudBrowseState {
-    object Idle : CloudBrowseState()
-    object Loading : CloudBrowseState()
-    data class FileList(val files: List<CloudFile>, val source: CloudSource) : CloudBrowseState()
-    data class Error(val message: String) : CloudBrowseState()
+sealed class FolderBrowseState {
+    object Idle : FolderBrowseState()
+    object Loading : FolderBrowseState()
+    /** Waiting for user to enter/confirm a path before browsing */
+    data class PathInput(val source: CloudSource, val currentPath: String = "/") : FolderBrowseState()
+    data class Browsing(val contents: CloudFolderContents, val source: CloudSource) : FolderBrowseState()
+    data class Error(val message: String, val source: CloudSource) : FolderBrowseState()
 }
 
 enum class CloudSource { ONEDRIVE, GOOGLE_DRIVE }
-
 enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, BOOST_TIME, TEMP_TIME }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -40,8 +43,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val uiState: StateFlow<UiState> get() = _uiState
     private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
 
-    val cloudBrowseState: StateFlow<CloudBrowseState> get() = _cloudBrowseState
-    private val _cloudBrowseState = MutableStateFlow<CloudBrowseState>(CloudBrowseState.Idle)
+    val folderBrowseState: StateFlow<FolderBrowseState> get() = _folderBrowseState
+    private val _folderBrowseState = MutableStateFlow<FolderBrowseState>(FolderBrowseState.Idle)
 
     val selectedChartType: StateFlow<ChartType> get() = _selectedChartType
     private val _selectedChartType = MutableStateFlow(ChartType.SPEED_TIME)
@@ -73,32 +76,60 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ── OneDrive ────────────────────────────────────────────────────────────
 
     fun initOneDrive() {
-        viewModelScope.launch {
-            oneDrive.initialize()
-        }
+        viewModelScope.launch { oneDrive.initialize() }
     }
 
     fun signInOneDrive(activity: Activity) {
         viewModelScope.launch {
-            _cloudBrowseState.value = CloudBrowseState.Loading
-            val result = oneDrive.signIn(activity)
-            result.onSuccess { token ->
+            _folderBrowseState.value = FolderBrowseState.Loading
+            oneDrive.signIn(activity).onSuccess { token ->
                 oneDriveToken = token
-                listOneDriveFiles(token)
+                // After sign-in, show path input dialog
+                _folderBrowseState.value = FolderBrowseState.PathInput(CloudSource.ONEDRIVE)
             }.onFailure {
-                _cloudBrowseState.value = CloudBrowseState.Error(it.message ?: "OneDrive sign-in failed")
+                _folderBrowseState.value = FolderBrowseState.Error(
+                    it.message ?: "OneDrive sign-in failed", CloudSource.ONEDRIVE
+                )
             }
         }
     }
 
-    fun listOneDriveFiles(token: String? = oneDriveToken) {
-        val t = token ?: return
+    fun openOneDriveBrowser() {
+        if (oneDrive.isSignedIn) {
+            _folderBrowseState.value = FolderBrowseState.PathInput(CloudSource.ONEDRIVE)
+        }
+    }
+
+    fun navigateToOneDriveFolder(folder: CloudFolder) {
+        val token = oneDriveToken ?: return
         viewModelScope.launch {
-            _cloudBrowseState.value = CloudBrowseState.Loading
-            oneDrive.listCsvFiles(t).onSuccess { files ->
-                _cloudBrowseState.value = CloudBrowseState.FileList(files, CloudSource.ONEDRIVE)
+            _folderBrowseState.value = FolderBrowseState.Loading
+            oneDrive.listFolderContents(token, folder).onSuccess { contents ->
+                _folderBrowseState.value = FolderBrowseState.Browsing(contents, CloudSource.ONEDRIVE)
             }.onFailure {
-                _cloudBrowseState.value = CloudBrowseState.Error(it.message ?: "Failed to list files")
+                _folderBrowseState.value = FolderBrowseState.Error(
+                    it.message ?: "Cannot open folder", CloudSource.ONEDRIVE
+                )
+            }
+        }
+    }
+
+    fun navigateToOneDrivePath(path: String) {
+        val token = oneDriveToken ?: return
+        viewModelScope.launch {
+            _folderBrowseState.value = FolderBrowseState.Loading
+            oneDrive.folderByPath(token, path).onSuccess { folder ->
+                oneDrive.listFolderContents(token, folder).onSuccess { contents ->
+                    _folderBrowseState.value = FolderBrowseState.Browsing(contents, CloudSource.ONEDRIVE)
+                }.onFailure {
+                    _folderBrowseState.value = FolderBrowseState.Error(
+                        it.message ?: "Cannot list folder", CloudSource.ONEDRIVE
+                    )
+                }
+            }.onFailure {
+                _folderBrowseState.value = FolderBrowseState.Error(
+                    it.message ?: "Path not found", CloudSource.ONEDRIVE
+                )
             }
         }
     }
@@ -107,7 +138,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val token = oneDriveToken ?: return
         viewModelScope.launch {
             _uiState.value = UiState.Loading
-            _cloudBrowseState.value = CloudBrowseState.Idle
+            _folderBrowseState.value = FolderBrowseState.Idle
             withContext(Dispatchers.IO) {
                 oneDrive.downloadFile(token, file.id).onSuccess { stream ->
                     try {
@@ -129,20 +160,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun handleGoogleSignInResult(data: Intent?) {
         viewModelScope.launch {
             googleDrive.handleSignInResult(data).onSuccess {
-                listGoogleDriveFiles()
+                _folderBrowseState.value = FolderBrowseState.PathInput(CloudSource.GOOGLE_DRIVE)
             }.onFailure {
-                _cloudBrowseState.value = CloudBrowseState.Error(it.message ?: "Google sign-in failed")
+                _folderBrowseState.value = FolderBrowseState.Error(
+                    it.message ?: "Google sign-in failed", CloudSource.GOOGLE_DRIVE
+                )
             }
         }
     }
 
-    fun listGoogleDriveFiles() {
+    fun openGoogleDriveBrowser() {
+        if (googleDrive.isSignedIn) {
+            _folderBrowseState.value = FolderBrowseState.PathInput(CloudSource.GOOGLE_DRIVE)
+        }
+    }
+
+    fun navigateToGoogleDriveFolder(folder: CloudFolder) {
         viewModelScope.launch {
-            _cloudBrowseState.value = CloudBrowseState.Loading
-            googleDrive.listCsvFiles().onSuccess { files ->
-                _cloudBrowseState.value = CloudBrowseState.FileList(files, CloudSource.GOOGLE_DRIVE)
+            _folderBrowseState.value = FolderBrowseState.Loading
+            googleDrive.listFolderContents(folder).onSuccess { contents ->
+                _folderBrowseState.value = FolderBrowseState.Browsing(contents, CloudSource.GOOGLE_DRIVE)
             }.onFailure {
-                _cloudBrowseState.value = CloudBrowseState.Error(it.message ?: "Failed to list files")
+                _folderBrowseState.value = FolderBrowseState.Error(
+                    it.message ?: "Cannot open folder", CloudSource.GOOGLE_DRIVE
+                )
+            }
+        }
+    }
+
+    fun navigateToGoogleDrivePath(path: String) {
+        viewModelScope.launch {
+            _folderBrowseState.value = FolderBrowseState.Loading
+            googleDrive.folderByPath(path).onSuccess { folder ->
+                googleDrive.listFolderContents(folder).onSuccess { contents ->
+                    _folderBrowseState.value = FolderBrowseState.Browsing(contents, CloudSource.GOOGLE_DRIVE)
+                }.onFailure {
+                    _folderBrowseState.value = FolderBrowseState.Error(
+                        it.message ?: "Cannot list folder", CloudSource.GOOGLE_DRIVE
+                    )
+                }
+            }.onFailure {
+                _folderBrowseState.value = FolderBrowseState.Error(
+                    it.message ?: "Path not found", CloudSource.GOOGLE_DRIVE
+                )
             }
         }
     }
@@ -150,7 +210,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun downloadGoogleDriveFile(file: CloudFile) {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
-            _cloudBrowseState.value = CloudBrowseState.Idle
+            _folderBrowseState.value = FolderBrowseState.Idle
             withContext(Dispatchers.IO) {
                 googleDrive.downloadFile(file.id).onSuccess { stream ->
                     try {
@@ -167,15 +227,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun dismissCloudBrowser() {
-        _cloudBrowseState.value = CloudBrowseState.Idle
-    }
+    // ── Common ───────────────────────────────────────────────────────────────
 
-    fun selectChart(type: ChartType) {
-        _selectedChartType.value = type
-    }
+    fun dismissFolderBrowser() { _folderBrowseState.value = FolderBrowseState.Idle }
 
-    fun reset() {
-        _uiState.value = UiState.Idle
-    }
+    fun selectChart(type: ChartType) { _selectedChartType.value = type }
+
+    fun reset() { _uiState.value = UiState.Idle }
 }

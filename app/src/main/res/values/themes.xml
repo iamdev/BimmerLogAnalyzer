@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.BimmerLogAnalyzer" parent="android:Theme.Material.NoTitleBar">
+    <!-- Base theme for Compose app — suppress ActionBar before Compose renders.
+         android:Theme.Material.Light is guaranteed available on API 21+ (minSdk 26).
+         We disable title/action bar explicitly rather than using a NoTitleBar variant
+         that may not exist on all API levels. -->
+    <style name="Theme.BimmerLogAnalyzer" parent="android:Theme.Material.Light">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 </resources>

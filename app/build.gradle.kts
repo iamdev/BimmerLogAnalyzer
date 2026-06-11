@@ -58,7 +58,11 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.mpandroidchart)
-    implementation(libs.msal) { exclude(group = "io.opentelemetry") }
+    implementation(libs.msal) {
+        exclude(group = "io.opentelemetry")
+        exclude(group = "com.microsoft.device.display")  // Surface Duo SDK — not in public Maven
+    }
+    implementation(libs.credentials.play.services.auth)
     implementation(libs.google.auth.api.phone)
     implementation(libs.google.api.client.android)
     implementation(libs.google.api.services.drive)
