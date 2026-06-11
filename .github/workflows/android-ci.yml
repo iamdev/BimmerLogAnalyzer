@@ -95,3 +95,15 @@ jobs:
                     `**APK:** [Download debug-apk-${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n` +
                     `**Commit:** \`${{ github.event.pull_request.head.sha }}\``
             })
+
+  # Separate job: check that credential templates exist
+  validate-templates:
+    name: Validate Config Templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check templates present
+        run: |
+          test -f app/src/main/res/raw/msal_config.json.template || (echo "Missing msal_config template" && exit 1)
+          test -f app/google-services.json.template || (echo "Missing google-services template" && exit 1)
+          echo "All templates present ✓"
