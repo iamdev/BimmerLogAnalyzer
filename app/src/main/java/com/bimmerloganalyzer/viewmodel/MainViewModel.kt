@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.bimmerloganalyzer.cloud.CloudFile
@@ -32,6 +33,7 @@ sealed class FolderBrowseState {
     /** Waiting for user to enter/confirm a path before browsing */
     data class PathInput(val source: CloudSource, val currentPath: String = "/") : FolderBrowseState()
     data class Browsing(val contents: CloudFolderContents, val source: CloudSource) : FolderBrowseState()
+    data class LocalBrowsing(val contents: CloudFolderContents) : FolderBrowseState()
     data class Error(val message: String, val source: CloudSource) : FolderBrowseState()
 }
 
@@ -53,6 +55,90 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val googleDrive = GoogleDriveHelper(app)
 
     private var oneDriveToken: String? = null
+
+    // ── Local folder browser ────────────────────────────────────────────────
+
+    private val localNavStack = ArrayDeque<String>() // folder URI strings, bottom = root
+
+    fun openLocalFolder(treeUri: Uri) {
+        try {
+            getApplication<Application>().contentResolver
+                .takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (_: SecurityException) {}
+        localNavStack.clear()
+        localNavStack.addLast(treeUri.toString())
+        browseLocalAtStack()
+    }
+
+    fun navigateLocalSubfolder(folderUri: String) {
+        localNavStack.addLast(folderUri)
+        browseLocalAtStack()
+    }
+
+    fun navigateLocalFolderUp() {
+        if (localNavStack.size <= 1) return
+        localNavStack.removeLast()
+        browseLocalAtStack()
+    }
+
+    fun loadLocalFileFromBrowser(file: CloudFile) {
+        _folderBrowseState.value = FolderBrowseState.Idle
+        loadLocalFile(Uri.parse(file.id), file.name)
+    }
+
+    private fun browseLocalAtStack() {
+        val currentUri = localNavStack.last()
+        val parentUri = if (localNavStack.size >= 2) localNavStack[localNavStack.size - 2] else null
+        viewModelScope.launch {
+            _folderBrowseState.value = FolderBrowseState.Loading
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val app = getApplication<Application>()
+                    val currentDoc = DocumentFile.fromTreeUri(app, Uri.parse(currentUri))
+                        ?: throw Exception("ไม่สามารถเปิด folder ได้")
+                    val parentDoc = parentUri?.let { DocumentFile.fromTreeUri(app, Uri.parse(it)) }
+                    buildLocalFolderContents(currentDoc, parentDoc)
+                }.onSuccess { contents ->
+                    _folderBrowseState.value = FolderBrowseState.LocalBrowsing(contents)
+                }.onFailure {
+                    _folderBrowseState.value = FolderBrowseState.Error(
+                        it.message ?: "ไม่สามารถเปิด folder ได้", CloudSource.ONEDRIVE
+                    )
+                }
+            }
+        }
+    }
+
+    private fun buildLocalFolderContents(
+        docFile: DocumentFile,
+        parentDocFile: DocumentFile?,
+    ): CloudFolderContents {
+        val subFolders = mutableListOf<CloudFolder>()
+        val csvFiles = mutableListOf<CloudFile>()
+        docFile.listFiles().forEach { child ->
+            val name = child.name ?: return@forEach
+            when {
+                child.isDirectory -> subFolders.add(
+                    CloudFolder(id = child.uri.toString(), name = name, path = name)
+                )
+                child.isFile && name.endsWith(".csv", ignoreCase = true) -> csvFiles.add(
+                    CloudFile(id = child.uri.toString(), name = name, size = child.length())
+                )
+            }
+        }
+        return CloudFolderContents(
+            currentFolder = CloudFolder(
+                id = docFile.uri.toString(),
+                name = docFile.name ?: "/",
+                path = docFile.name ?: "/",
+            ),
+            parentFolder = parentDocFile?.let {
+                CloudFolder(id = it.uri.toString(), name = it.name ?: "..", path = it.name ?: "..")
+            },
+            subFolders = subFolders.sortedBy { it.name },
+            csvFiles = csvFiles,
+        )
+    }
 
     // ── Local file ──────────────────────────────────────────────────────────
 
