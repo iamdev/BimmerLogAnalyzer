@@ -2,6 +2,7 @@ package com.bimmerloganalyzer.cloud
 
 import android.app.Activity
 import android.content.Context
+import com.bimmerloganalyzer.R
 import com.microsoft.identity.client.*
 import com.microsoft.identity.client.exception.MsalException
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,7 @@ class OneDriveHelper(private val context: Context) {
         suspendCancellableCoroutine { cont ->
             PublicClientApplication.createSingleAccountPublicClientApplication(
                 context,
-                com.bimmerloganalyzer.R.raw.msal_config,
+                R.raw.msal_config,
                 object : IPublicClientApplication.ISingleAccountApplicationCreatedListener {
                     override fun onCreated(app: ISingleAccountPublicClientApplication) {
                         msalApp = app; cont.resume(Result.success(Unit))

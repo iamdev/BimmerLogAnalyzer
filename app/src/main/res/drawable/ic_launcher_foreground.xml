@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Speedometer needle -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#1E90FF"
+        android:strokeWidth="5"
+        android:pathData="M54,72 A22,22,0,1,1,54,28 A22,22,0,1,1,54,72 Z" />
+    <path
+        android:strokeColor="#1E90FF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:pathData="M54,50 L66,38" />
+    <path
+        android:fillColor="#1E90FF"
+        android:pathData="M52,50 A2,2,0,1,0,56,50 A2,2,0,1,0,52,50 Z" />
+</vector>

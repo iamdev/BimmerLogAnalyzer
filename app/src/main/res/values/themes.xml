@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.BimmerLogAnalyzer" parent="android:Theme.Material.NoTitleBar">
+    <!-- Compose handles all theming; XML theme just suppresses the default ActionBar
+         before Compose renders. Theme.Material.Light.NoTitleBar is available API 21+
+         and matches our minSdk 26. -->
+    <style name="Theme.BimmerLogAnalyzer" parent="android:Theme.Material.Light.NoTitleBar">
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 </resources>
