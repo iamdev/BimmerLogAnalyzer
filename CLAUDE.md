@@ -12,74 +12,280 @@ be opened from local storage, Microsoft OneDrive, or Google Drive.
 
 ```bash
 ./gradlew assembleDebug        # build debug APK → app/build/outputs/apk/debug/
-./gradlew testDebugUnitTest    # unit tests
+./gradlew testDebugUnitTest    # unit tests (no test sources currently exist)
 ./gradlew lintDebug            # Android lint
 ```
 
-- **JDK 17**, Gradle 8.7, AGP 8.5, Kotlin 2.0, min SDK 26 / target SDK 34.
+- **JDK 17**, Gradle 8.7, AGP 8.5.0, Kotlin 2.0.0, min SDK 26 / target SDK 34.
 - `gradlew` / `gradlew.bat` are the **official** Gradle wrapper scripts — do not
   hand-edit them (a hand-written wrapper previously broke CI with a JVM-opts
   quoting bug).
+- No unit test source files exist yet (`src/test/` is empty). CI runs the
+  Gradle task anyway; it succeeds when there are no tests.
+
+## Repository Layout
+
+```
+BimmerLogAnalyzer/
+├── app/
+│   ├── build.gradle.kts
+│   ├── google-services.json.template      # shape doc for Firebase config
+│   ├── proguard-rules.pro
+│   └── src/main/
+│       ├── AndroidManifest.xml
+│       ├── java/com/bimmerloganalyzer/
+│       │   ├── MainActivity.kt            # NavHost, external CSV intent handling
+│       │   ├── cloud/
+│       │   │   ├── CloudFolder.kt         # CloudFile, CloudFolder, CloudFolderContents
+│       │   │   ├── OneDriveHelper.kt      # MSAL + Microsoft Graph REST
+│       │   │   └── GoogleDriveHelper.kt   # Google Sign-In + Drive API v3
+│       │   ├── data/
+│       │   │   ├── OBDDataPoint.kt        # core model + HP math
+│       │   │   ├── CsvParser.kt           # auto-column-detect CSV parser
+│       │   │   ├── LogFileName.kt         # filename ↔ datetime utilities
+│       │   │   └── LogSession.kt          # stats + downsampling wrapper
+│       │   ├── viewmodel/
+│       │   │   └── MainViewModel.kt       # UiState + FolderBrowseState (StateFlow)
+│       │   └── ui/
+│       │       ├── components/
+│       │       │   └── OBDLineChart.kt    # MPAndroidChart Compose wrapper
+│       │       ├── screens/
+│       │       │   ├── HomeScreen.kt      # import source selection
+│       │       │   ├── ChartScreen.kt     # 6 chart types with tab selector
+│       │       │   └── CloudFolderBrowserDialog.kt
+│       │       └── theme/
+│       │           └── Theme.kt           # dark Material3 theme
+│       └── res/
+│           └── values/{strings,themes}.xml
+├── gradle/
+│   ├── libs.versions.toml                 # centralized version catalog
+│   └── wrapper/gradle-wrapper.properties
+├── .github/workflows/android-ci.yml
+├── ExampleData/Log-2026-06-09--21-57-04.csv
+├── msal_config.json.template              # shape doc for Azure/OneDrive creds
+├── build.gradle.kts                       # root project gradle
+├── settings.gradle.kts
+└── gradle.properties
+```
 
 ## Architecture
 
 MVVM + Jetpack Compose, single-activity, Navigation Compose.
 
-```
-data/        OBDDataPoint (model + HP math), CsvParser (auto column detect),
-             LogSession (stats + downsampling), LogFileName (filename→datetime)
-cloud/       OneDriveHelper (MSAL + Graph REST), GoogleDriveHelper (Drive API),
-             CloudFile / CloudFolder / CloudFolderContents
-viewmodel/   MainViewModel — UiState + FolderBrowseState (StateFlow)
-ui/screens/  HomeScreen (import sources), ChartScreen (6 chart types),
-             CloudFolderBrowserDialog (path input + folder navigation)
-ui/components/ OBDLineChart (MPAndroidChart Compose wrapper)
-ui/theme/    Theme.kt (dark theme)
-```
-
 Data flow: source picked in `HomeScreen` → `MainViewModel` parses CSV via
-`CsvParser` → `UiState.Success(LogSession)` → navigation to `ChartScreen`.
+`CsvParser` → `UiState.Success(LogSession)` → navigate to `ChartScreen`.
 
-## Domain knowledge
+### Key Dependencies (libs.versions.toml)
 
-- **HP formula** (in `OBDDataPoint`): `PS = Torque(Nm) × RPM / 9549.3`,
-  `bhp = Torque × RPM / 7120.83`. Power is 0 unless both torque and rpm > 0.
-- **Dyno curve** uses only full-throttle points (`throttlePct >= 95`, `rpm > 500`),
-  sorted by RPM.
-- **Filename convention**: `Log-YYYY-MM-DD--HH-mm-ss.csv` encodes the session
-  start datetime. `LogFileName` parses it; the CSV `Time` column is an offset in
-  seconds from that start. When a filename matches, time-based charts show real
-  HH:mm:ss clock labels instead of raw seconds.
-- **CSV parsing** is column-name based (case-insensitive keyword match), not
-  positional — new logger column orderings are tolerated. Header row is
-  auto-located; non-numeric cells fall back to 0.
+| Library | Version |
+|---------|---------|
+| Compose BOM | 2024.06.00 |
+| Navigation Compose | 2.7.7 |
+| Lifecycle / ViewModel | 2.8.3 |
+| Activity Compose | 1.9.0 |
+| MPAndroidChart | v3.1.0 (JitPack) |
+| MSAL | 5.3.0 |
+| Google Play Services Auth | 20.7.0 |
+| Google API Client Android | 2.2.0 |
+| Google Drive API | v3-rev20240123-2.0.0 |
+| Kotlinx Coroutines Android | 1.8.1 |
+| DataStore Preferences | 1.1.1 |
 
-## Cloud integration
+Maven repositories: `google()`, `mavenCentral()`, JitPack, Azure Surface Duo SDK Maven.
 
-- Credentials are **not** committed. `msal_config.json` (→ `app/src/main/res/raw/`)
-  and `google-services.json` (→ `app/`) are gitignored; `.template` files at the
-  repo root / `app/` document the shape. Setup steps are in the README.
-- `res/raw/` filenames must be `[a-z0-9_]` only — never put `*.template` (dots)
-  there; keep templates outside `res/`.
-- MSAL 5.3.0 pulls Surface-Duo `display-mask` (not on public Maven) and
-  `androidx.credentials`; the MSAL dependency in `app/build.gradle.kts` excludes
-  `com.microsoft.device.display` and Jetifier is enabled in `gradle.properties`.
-- Google Drive `files()` returns **null** for empty folders — always
-  `.orEmpty()` before mapping. OneDrive root folder id is normalized to the
-  literal `"root"` so `folder.id == "root"` parent-detection guards work.
+### State Management (MainViewModel.kt)
 
-## CI
+```kotlin
+sealed class UiState {
+    object Idle : UiState()
+    object Loading : UiState()
+    data class Success(val session: LogSession) : UiState()
+    data class Error(val message: String) : UiState()
+}
 
-`.github/workflows/android-ci.yml` runs on every PR and push to `main`:
-injects credential secrets (`MSAL_CONFIG_JSON`, `GOOGLE_SERVICES_JSON`), builds
-the debug APK, runs unit tests + lint, uploads the APK artifact, and comments a
-download link on the PR. A separate `validate-templates` job checks the
-credential templates exist.
+sealed class FolderBrowseState {
+    object Idle
+    object Loading
+    data class PathInput(val source: CloudSource, val currentPath: String = "/")
+    data class Browsing(val contents: CloudFolderContents, val source: CloudSource)
+    data class Error(val message: String, val source: CloudSource)
+}
+
+enum class CloudSource { ONEDRIVE, GOOGLE_DRIVE }
+enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, BOOST_TIME, TEMP_TIME }
+```
+
+StateFlows: `uiState`, `folderBrowseState`, `selectedChartType`.
+
+### Navigation (MainActivity.kt)
+
+Two routes in `NavHost`:
+- `"home"` → `HomeScreen` — also handles `ACTION_VIEW` intents for CSV files opened
+  from a file manager (intent filters for `text/csv` and `text/comma-separated-values`).
+- `"chart"` → `ChartScreen` — only reachable when `UiState.Success`.
+
+MSAL OAuth redirect activity (`BrowserTabActivity`) is registered in the manifest
+with scheme `msauth://com.bimmerloganalyzer/PLACEHOLDER_HASH`.
+
+## Domain Knowledge
+
+### OBDDataPoint Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `time` | Float | Seconds offset from log start |
+| `gear` | Float | |
+| `speedKmh` | Float | |
+| `rpm` | Float | |
+| `torqueNm` | Float | |
+| `clutchTorqueNm` | Float | |
+| `boostBar` | Float | |
+| `throttlePct` | Float | |
+| `accelerationMs2` | Float | |
+| `exhaustPressureBar` | Float | |
+| `turboRpm` | Float | |
+| `railPressureBar` | Float | |
+| `ambientTempC` | Float | |
+| `engineTempC` | Float | |
+| `transmissionTempC` | Float | |
+
+Calculated (not stored): `powerPs = torqueNm × rpm / 9549.3`,
+`powerBhp = torqueNm × rpm / 7120.83`. Both are 0 when torque or rpm ≤ 0.
+
+### LogSession
+
+Wraps `List<OBDDataPoint>` with the source filename. Computed stats:
+`maxSpeedKmh`, `maxTorqueNm`, `maxPowerPs`, `maxRpm`, `durationSec`,
+`displayLabel` / `shortLabel` (formatted datetime from filename).
+
+- `sampledPoints(maxPoints = 1000)` — downsamples for chart performance.
+- `fullThrottlePoints()` — filters `throttlePct ≥ 95` and `rpm > 500`, sorted by RPM
+  (used for dyno curve).
+
+### CSV Parsing
+
+`CsvParser` locates the header row by searching for a row containing `"Time"` or
+`"speed"`. Column binding is case-insensitive keyword matching — column order
+doesn't matter. Missing columns default to `0f`. Quoted fields and blank/numeric
+leading rows are handled gracefully.
+
+### Filename Convention
+
+`Log-YYYY-MM-DD--HH-mm-ss.csv` encodes session start datetime. `LogFileName`
+parses it; the CSV `Time` column is a float offset in seconds from that start.
+When a filename matches, time-based charts render `HH:mm:ss` clock labels instead
+of raw seconds on the X-axis.
+
+## Cloud Integration
+
+### Data Models (cloud/CloudFolder.kt)
+
+```kotlin
+data class CloudFile(val id: String, val name: String, val size: Long)
+data class CloudFolder(val id: String, val name: String, val path: String)
+data class CloudFolderContents(
+    val currentFolder: CloudFolder,
+    val parentFolder: CloudFolder?,
+    val subFolders: List<CloudFolder>,
+    val csvFiles: List<CloudFile>
+)
+```
+
+### OneDrive (MSAL + Microsoft Graph v1.0)
+
+- **Scopes:** `Files.Read`, `Files.Read.All`
+- **Endpoints used:**
+  - `GET /me/drive/root/children` — root listing
+  - `GET /me/drive/items/{id}/children` — folder listing
+  - `GET /me/drive/items/{id}/content` — file download
+  - `GET /me/drive/root:/{path}` — navigate by path
+- Root folder id is normalised to the literal `"root"` for parent-detection guards
+  (`folder.id == "root"`).
+
+### Google Drive (Drive API v3)
+
+- **Scope:** `DriveScopes.DRIVE_READONLY`
+- `files()` list calls return **null** for empty folders — always `.orEmpty()`
+  before mapping.
+- File list fields requested: `id`, `name`, `size`, `parents`.
+
+### Credentials
+
+Credentials are **not** committed. `msal_config.json` (→
+`app/src/main/res/raw/`) and `google-services.json` (→ `app/`) are gitignored;
+`.template` files document their shape. Setup steps are in `README.md`.
+
+- `res/raw/` filenames must match `[a-z0-9_]` — never place `*.template` files
+  (containing dots) inside `res/`.
+- MSAL 5.3.0 pulls Surface-Duo `display-mask` (not on public Maven); the
+  dependency excludes `com.microsoft.device.display`. Jetifier is enabled in
+  `gradle.properties` to handle transitive MSAL deps.
+
+## UI
+
+### Theme (ui/theme/Theme.kt) — forced dark
+
+| Token | Hex |
+|-------|-----|
+| `BluePrimary` | #1E90FF |
+| `BlueContainer` | #003A70 |
+| `GreenAccent` | #00E676 |
+| `OrangeAccent` | #FF6D00 |
+| `RedAccent` | #FF1744 |
+| `SurfaceDark` | #121212 |
+| `SurfaceVariant` | #1E1E1E |
+| `OnSurface` | #E0E0E0 |
+
+### OBDLineChart (MPAndroidChart Compose wrapper)
+
+- Drag, pinch-to-zoom, and pan are enabled; circles and value labels are off.
+- Dark background `#1E1E1E`; line width 1.8 pt.
+- Dual Y-axes supported (`rightAxis = true` per series).
+- X-axis formatter: if `startTime` is provided → absolute `HH:mm:ss`; otherwise
+  relative `"Xs"` seconds.
+- Data input: `List<ChartSeries>` (label, entries, color, optional right-axis flag).
+
+### Chart Types (ChartScreen.kt)
+
+| Tab | Series |
+|-----|--------|
+| Speed vs Time | Speed (km/h) |
+| Torque vs Time | Torque (Nm) left + RPM/10 right |
+| Power vs Time | PS left + bhp right |
+| Dyno Curve | RPM (X) vs Torque & Power (full-throttle only) |
+| Boost vs Time | Boost (bar) + Exhaust pressure (bar) |
+| Temp vs Time | Engine, Transmission, Ambient (°C) |
+
+## CI (`.github/workflows/android-ci.yml`)
+
+Triggers: push or PR to `main` / `master`.
+
+**`build` job** (ubuntu-latest, 30 min timeout):
+1. Set up JDK 17 (Temurin) + Gradle cache.
+2. Inject `secrets.MSAL_CONFIG_JSON` → `app/src/main/res/raw/msal_config.json`.
+3. Inject `secrets.GOOGLE_SERVICES_JSON` → `app/google-services.json`.
+4. `./gradlew assembleDebug testDebugUnitTest lintDebug` (lint is
+   `continue-on-error: true`).
+5. Upload APK artifact (14-day retention) + lint report + test results.
+6. Post APK download link comment on the PR.
+
+**`validate-templates` job**: asserts that `msal_config.json.template` and
+`app/google-services.json.template` both exist in the repo.
+
+**Required GitHub Secrets:** `MSAL_CONFIG_JSON`, `GOOGLE_SERVICES_JSON`.
 
 ## Conventions
 
 - Default branch is `main`; work on feature branches and open PRs.
 - Helpers return `Result<T>`; the ViewModel maps failures to `UiState.Error` /
   `FolderBrowseState.Error`. Network/IO runs on `Dispatchers.IO`.
-- UI strings are mixed Thai/English (Thai for user-facing labels). Match the
+- UI strings are mixed Thai/English — Thai for user-facing labels. Match the
   surrounding file.
+- Coroutine patterns: `viewModelScope.launch`, `withContext(Dispatchers.IO)` for
+  blocking I/O, `suspendCancellableCoroutine` to wrap MSAL/Google Auth callbacks.
+- Compose patterns: `collectAsState()` for StateFlow, `LaunchedEffect` for
+  navigation side-effects, `rememberLauncherForActivityResult` for cross-activity
+  results.
+- ProGuard (`proguard-rules.pro`) keeps `com.microsoft.identity.**`,
+  `com.google.api.**`, and `com.google.android.gms.**`; release minification is
+  currently disabled.
