@@ -8,6 +8,7 @@ composeBom = "2024.06.00"
 navigationCompose = "2.7.7"
 mpandroidchart = "v3.1.0"
 msal = "5.3.0"
+credentialsPlayServices = "1.2.0"
 googleAuthApiPhone = "20.7.0"
 googleApiClientAndroid = "2.2.0"
 googleApiServicesDrive = "v3-rev20240123-2.0.0"
@@ -30,6 +31,7 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 mpandroidchart = { group = "com.github.PhilJay", name = "MPAndroidChart", version.ref = "mpandroidchart" }
 msal = { group = "com.microsoft.identity.client", name = "msal", version.ref = "msal" }
+credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentialsPlayServices" }
 google-auth-api-phone = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "googleAuthApiPhone" }
 google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClientAndroid" }
 google-api-services-drive = { group = "com.google.apis", name = "google-api-services-drive", version.ref = "googleApiServicesDrive" }
