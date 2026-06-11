@@ -67,7 +67,7 @@ class GoogleDriveHelper(private val context: Context) {
                     .setFields("files(id,name)")
                     .setPageSize(100)
                     .execute()
-                val subFolders = folderResult.files.map { f ->
+                val subFolders = folderResult.files.orEmpty().map { f ->
                     val childPath = if (folder.path == "/") "/${f.name}" else "${folder.path}/${f.name}"
                     CloudFolder(f.id, f.name, childPath)
                 }
@@ -78,7 +78,7 @@ class GoogleDriveHelper(private val context: Context) {
                     .setFields("files(id,name,size)")
                     .setPageSize(200)
                     .execute()
-                val csvFiles = fileResult.files
+                val csvFiles = fileResult.files.orEmpty()
                     .filter { it.name.endsWith(".csv", ignoreCase = true) }
                     .map { CloudFile(it.id, it.name, it.getSize() ?: 0L) }
 
@@ -115,7 +115,7 @@ class GoogleDriveHelper(private val context: Context) {
                     .setFields("files(id,name)")
                     .setPageSize(1)
                     .execute()
-                val found = result.files.firstOrNull()
+                val found = result.files.orEmpty().firstOrNull()
                     ?: return@withContext Result.failure(Exception("Folder not found: $segment"))
                 currentId = found.id
                 currentPath = if (currentPath == "/") "/$segment" else "$currentPath/$segment"

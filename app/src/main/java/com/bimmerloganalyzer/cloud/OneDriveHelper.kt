@@ -125,9 +125,11 @@ class OneDriveHelper(private val context: Context) {
                     "$GRAPH/me/drive/root:/$cleanPath?\$select=id,name"
                 }
                 val json = graphGet(url, token)
-                val id = json.getString("id")
-                val name = json.getString("name")
-                Result.success(CloudFolder(id, name, "/${cleanPath}"))
+                // Normalize the drive root to the literal "root" id so downstream
+                // `folder.id == "root"` guards (parent detection) behave correctly.
+                val id = if (cleanPath.isEmpty()) "root" else json.getString("id")
+                val name = if (cleanPath.isEmpty()) "My Drive" else json.getString("name")
+                Result.success(CloudFolder(id, name, "/$cleanPath"))
             } catch (e: Exception) {
                 Result.failure(Exception("Folder not found: $path"))
             }
