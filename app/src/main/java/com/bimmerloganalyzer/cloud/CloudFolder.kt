@@ -1,5 +1,11 @@
 package com.bimmerloganalyzer.cloud
 
+data class CloudFile(
+    val id: String,
+    val name: String,
+    val size: Long,
+)
+
 data class CloudFolder(
     val id: String,
     val name: String,
