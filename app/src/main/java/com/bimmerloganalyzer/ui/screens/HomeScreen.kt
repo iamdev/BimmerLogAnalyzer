@@ -31,14 +31,8 @@ fun HomeScreen(viewModel: MainViewModel, onSessionLoaded: () -> Unit) {
         if (uiState is UiState.Success) onSessionLoaded()
     }
 
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
-            val name = context.contentResolver.query(it, null, null, null, null)?.use { c ->
-                val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                c.moveToFirst(); if (idx >= 0) c.getString(idx) else "log.csv"
-            } ?: "log.csv"
-            viewModel.loadLocalFile(it, name)
-        }
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        uri?.let { viewModel.openLocalFolder(it) }
     }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
@@ -78,12 +72,12 @@ fun HomeScreen(viewModel: MainViewModel, onSessionLoaded: () -> Unit) {
             )
             Spacer(Modifier.height(40.dp))
 
-            // Local file
+            // Local folder
             ImportButton(
                 icon = Icons.Filled.FolderOpen,
                 label = "เปิดไฟล์จากเครื่อง",
-                subtitle = "เลือก CSV จาก storage",
-                onClick = { filePicker.launch("*/*") },
+                subtitle = "เรียกดู CSV จาก storage",
+                onClick = { folderPicker.launch(null) },
             )
             Spacer(Modifier.height(16.dp))
 
