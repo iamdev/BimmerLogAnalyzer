@@ -25,17 +25,27 @@ class OneDriveHelper(private val context: Context) {
     private var msalApp: ISingleAccountPublicClientApplication? = null
 
     suspend fun initialize(): Result<Unit> = withContext(Dispatchers.IO) {
-        suspendCancellableCoroutine { cont ->
-            PublicClientApplication.createSingleAccountPublicClientApplication(
-                context,
-                R.raw.msal_config,
-                object : IPublicClientApplication.ISingleAccountApplicationCreatedListener {
-                    override fun onCreated(app: ISingleAccountPublicClientApplication) {
-                        msalApp = app; cont.resume(Result.success(Unit))
+        try {
+            // Guard: skip MSAL init if config is missing or not a real JSON object
+            val configText = context.resources.openRawResource(R.raw.msal_config)
+                .bufferedReader().readText().trim()
+            if (configText.length < 10 || !configText.startsWith("{")) {
+                return@withContext Result.failure(Exception("OneDrive credentials not configured"))
+            }
+            suspendCancellableCoroutine { cont ->
+                PublicClientApplication.createSingleAccountPublicClientApplication(
+                    context,
+                    R.raw.msal_config,
+                    object : IPublicClientApplication.ISingleAccountApplicationCreatedListener {
+                        override fun onCreated(app: ISingleAccountPublicClientApplication) {
+                            msalApp = app; cont.resume(Result.success(Unit))
+                        }
+                        override fun onError(e: MsalException) { cont.resume(Result.failure(e)) }
                     }
-                    override fun onError(e: MsalException) { cont.resume(Result.failure(e)) }
-                }
-            )
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

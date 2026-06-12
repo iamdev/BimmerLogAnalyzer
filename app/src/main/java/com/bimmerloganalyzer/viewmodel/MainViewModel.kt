@@ -162,7 +162,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ── OneDrive ────────────────────────────────────────────────────────────
 
     fun initOneDrive() {
-        viewModelScope.launch { oneDrive.initialize() }
+        viewModelScope.launch { runCatching { oneDrive.initialize() } }
     }
 
     fun signInOneDrive(activity: Activity) {
