@@ -53,6 +53,14 @@ Data flow: source picked in `HomeScreen` → `MainViewModel` parses CSV via
 - **CSV parsing** is column-name based (case-insensitive keyword match), not
   positional — new logger column orderings are tolerated. Header row is
   auto-located; non-numeric cells fall back to 0.
+- **Row reconstruction**: the logger streams **one value per row**, carrying
+  prior values forward, so many raw rows share the same `Time` and only the last
+  row of each time-run is a complete sample. `CsvParser.compact()` keeps that
+  last row per consecutive equal-`Time` run. If `Time` is absent/constant the
+  raw rows are returned unchanged.
+- **Dyno estimate** (`LogSession.dynoCurve`): full-throttle points are binned by
+  RPM (max torque per bin = envelope); empty bins are linearly interpolated and
+  flagged `estimated` so the UI draws them dashed vs solid circles for measured.
 
 ## Cloud integration
 

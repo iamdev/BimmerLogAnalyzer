@@ -36,7 +36,10 @@ sealed class FolderBrowseState {
 }
 
 enum class CloudSource { ONEDRIVE, GOOGLE_DRIVE }
-enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, BOOST_TIME, TEMP_TIME }
+enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, DYNO_ESTIMATE, BOOST_TIME, TEMP_TIME }
+
+/** Power display unit. PS = metric horsepower, BHP = imperial brake horsepower. */
+enum class PowerUnit(val label: String) { PS("PS"), BHP("HP") }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -48,6 +51,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val selectedChartType: StateFlow<ChartType> get() = _selectedChartType
     private val _selectedChartType = MutableStateFlow(ChartType.SPEED_TIME)
+
+    val powerUnit: StateFlow<PowerUnit> get() = _powerUnit
+    private val _powerUnit = MutableStateFlow(PowerUnit.PS)
 
     val oneDrive = OneDriveHelper(app)
     val googleDrive = GoogleDriveHelper(app)
@@ -232,6 +238,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissFolderBrowser() { _folderBrowseState.value = FolderBrowseState.Idle }
 
     fun selectChart(type: ChartType) { _selectedChartType.value = type }
+
+    fun selectPowerUnit(unit: PowerUnit) { _powerUnit.value = unit }
 
     fun reset() { _uiState.value = UiState.Idle }
 }

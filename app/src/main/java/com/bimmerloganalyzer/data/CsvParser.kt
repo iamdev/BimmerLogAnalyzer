@@ -18,9 +18,37 @@ object CsvParser {
         val headers = lines[headerIndex].split(",").map { it.trim().lowercase() }
         val colIndex = buildColumnIndex(headers)
 
-        return lines.drop(headerIndex + 1)
+        val raw = lines.drop(headerIndex + 1)
             .filter { it.isNotBlank() }
             .mapNotNull { line -> parseLine(line, colIndex) }
+
+        return compact(raw)
+    }
+
+    /**
+     * The logger streams **one value per row**, carrying every previously-set
+     * value forward, e.g.
+     * ```
+     * 1,0,0   1,2,0   1,2,3   4,2,3   4,5,3   4,5,6
+     * ```
+     * forms only two complete samples: `1,2,3` and `4,5,6`. A complete sample
+     * is the fully-accumulated row right before the `Time` column advances, so
+     * we keep the **last** row of each consecutive equal-time run. When the time
+     * column is absent or constant we cannot detect cycle boundaries, so the raw
+     * rows are returned unchanged.
+     */
+    private fun compact(points: List<OBDDataPoint>): List<OBDDataPoint> {
+        if (points.size < 2) return points
+        val distinctTimes = points.mapTo(HashSet()) { it.time }.size
+        if (distinctTimes < 2) return points
+
+        val out = ArrayList<OBDDataPoint>(distinctTimes)
+        for (i in points.indices) {
+            val cur = points[i]
+            val next = points.getOrNull(i + 1)
+            if (next == null || next.time != cur.time) out.add(cur)
+        }
+        return out
     }
 
     private data class ColIndex(
