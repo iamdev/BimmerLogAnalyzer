@@ -20,10 +20,26 @@ android {
         manifestPlaceholders["msalRedirectUri"] = "msauth://com.bimmerloganalyzer/PLACEHOLDER_HASH"
     }
 
+    signingConfigs {
+        // Stable, checked-in debug keystore so every build (local & CI) is signed
+        // with the SAME key — lets users install updates over a previous APK
+        // instead of having to uninstall first. A debug keystore is not a secret.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

@@ -24,6 +24,8 @@ app/src/main/res/raw/msal_config.json
 .DS_Store
 Thumbs.db
 
-# Keystore
+# Keystore — release keys must never be committed, but the shared DEBUG
+# keystore IS committed so all builds sign identically (updatable installs).
 *.jks
 *.keystore
+!app/debug.keystore
