@@ -19,7 +19,9 @@ import com.bimmerloganalyzer.data.DynoPoint
 import com.bimmerloganalyzer.data.LogSession
 import com.bimmerloganalyzer.data.OBDDataPoint
 import com.bimmerloganalyzer.ui.components.ChartSeries
+import com.bimmerloganalyzer.ui.components.LocalZoomAxis
 import com.bimmerloganalyzer.ui.components.OBDLineChart
+import com.bimmerloganalyzer.ui.components.ZoomAxis
 import com.bimmerloganalyzer.ui.theme.*
 import com.bimmerloganalyzer.viewmodel.ChartType
 import com.bimmerloganalyzer.viewmodel.MainViewModel
@@ -39,6 +41,7 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
 
     // Bumping this resets zoom/pan on the active chart
     var resetZoomKey by remember { mutableStateOf(0) }
+    var zoomAxis by remember { mutableStateOf(ZoomAxis.BOTH) }
     // Reset zoom automatically when switching chart type
     LaunchedEffect(selectedChart) { resetZoomKey++ }
 
@@ -83,6 +86,9 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
                 PowerUnitToggle(selected = powerUnit, onSelect = viewModel::selectPowerUnit)
             }
 
+            // Zoom-axis toggle (both / X only / Y only)
+            ZoomAxisToggle(selected = zoomAxis, onSelect = { zoomAxis = it; resetZoomKey++ })
+
             StatsSummaryRow(session, powerUnit)
 
             Box(
@@ -91,14 +97,16 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
                     .fillMaxWidth()
                     .padding(8.dp)
             ) {
-                when (selectedChart) {
-                    ChartType.SPEED_TIME -> SpeedTimeChart(points, startTime, resetZoomKey)
-                    ChartType.TORQUE_TIME -> TorqueTimeChart(points, startTime, resetZoomKey)
-                    ChartType.POWER_TIME -> PowerTimeChart(points, startTime, powerUnit, resetZoomKey)
-                    ChartType.DYNO_CURVE -> DynoCurveChart(fullThrottle, powerUnit, resetZoomKey)
-                    ChartType.DYNO_ESTIMATE -> DynoEstimateChart(dynoEstimate, powerUnit, resetZoomKey)
-                    ChartType.BOOST_TIME -> BoostTimeChart(points, startTime, resetZoomKey)
-                    ChartType.TEMP_TIME -> TempTimeChart(points, startTime, resetZoomKey)
+                CompositionLocalProvider(LocalZoomAxis provides zoomAxis) {
+                    when (selectedChart) {
+                        ChartType.SPEED_TIME -> SpeedTimeChart(points, startTime, resetZoomKey)
+                        ChartType.TORQUE_TIME -> TorqueTimeChart(points, startTime, resetZoomKey)
+                        ChartType.POWER_TIME -> PowerTimeChart(points, startTime, powerUnit, resetZoomKey)
+                        ChartType.DYNO_CURVE -> DynoCurveChart(fullThrottle, powerUnit, resetZoomKey)
+                        ChartType.DYNO_ESTIMATE -> DynoEstimateChart(dynoEstimate, powerUnit, resetZoomKey)
+                        ChartType.BOOST_TIME -> BoostTimeChart(points, startTime, resetZoomKey)
+                        ChartType.TEMP_TIME -> TempTimeChart(points, startTime, resetZoomKey)
+                    }
                 }
 
                 // Reset-zoom button (pinch/drag to zoom, tap to reset)
@@ -166,6 +174,28 @@ private fun PowerUnitToggle(selected: PowerUnit, onSelect: (PowerUnit) -> Unit) 
                 selected = selected == unit,
                 onClick = { onSelect(unit) },
                 label = { Text(unit.label) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ZoomAxisToggle(selected: ZoomAxis, onSelect: (ZoomAxis) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("ซูมแกน:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(0.6f))
+        listOf(
+            ZoomAxis.BOTH to "ทั้งคู่",
+            ZoomAxis.X_ONLY to "X",
+            ZoomAxis.Y_ONLY to "Y",
+        ).forEach { (axis, label) ->
+            FilterChip(
+                selected = selected == axis,
+                onClick = { onSelect(axis) },
+                label = { Text(label) },
             )
         }
     }

@@ -36,18 +36,21 @@ data class LogSession(
 
     /**
      * Dyno-style power/torque envelope vs RPM, binned every [binRpm] and
-     * **estimate-filled**: each RPM bin keeps the maximum measured torque
-     * (the achievable envelope); bins with no measured sample are linearly
+     * **estimate-filled**. Each RPM bin keeps the **maximum torque** seen at that
+     * RPM across the whole session (the achievable envelope) — this does not
+     * require a full-throttle filter, so it works even when throttle isn't
+     * logged as a percentage. Bins with no measured sample are linearly
      * interpolated from the nearest measured neighbours and flagged
      * `estimated = true` so the UI can render them as an approximation.
      */
     fun dynoCurve(binRpm: Float = 250f): List<DynoPoint> {
-        val ft = fullThrottlePoints()
-        if (ft.isEmpty()) return emptyList()
+        // Use every point with a real RPM and positive torque (engine actually pulling)
+        val src = points.filter { it.rpm > 500f && it.torqueNm > 0f }
+        if (src.isEmpty()) return emptyList()
 
         // bin index → max measured torque in that bin (the envelope)
         val measured = sortedMapOf<Int, Float>()
-        for (p in ft) {
+        for (p in src) {
             val bin = (p.rpm / binRpm).toInt()
             measured[bin] = maxOf(measured[bin] ?: Float.NEGATIVE_INFINITY, p.torqueNm)
         }

@@ -3,6 +3,7 @@ package com.bimmerloganalyzer.ui.components
 import android.graphics.Color
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.LineChart
@@ -15,6 +16,12 @@ import com.github.mikephil.charting.formatter.ValueFormatter
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+/** Which axis pinch/scale gestures affect. */
+enum class ZoomAxis { BOTH, X_ONLY, Y_ONLY }
+
+/** Lets ChartScreen pick the zoom axis without threading a param through every chart. */
+val LocalZoomAxis = compositionLocalOf { ZoomAxis.BOTH }
 
 data class ChartSeries(
     val label: String,
@@ -44,6 +51,7 @@ fun OBDLineChart(
     resetZoomKey: Int = 0,
     modifier: Modifier = Modifier,
 ) {
+    val zoomAxis = LocalZoomAxis.current
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
@@ -93,6 +101,25 @@ fun OBDLineChart(
             }
         },
         update = { chart ->
+            // Apply zoom-axis selection (pinch zoom locks to chosen axis)
+            when (zoomAxis) {
+                ZoomAxis.BOTH -> {
+                    chart.isScaleXEnabled = true
+                    chart.isScaleYEnabled = true
+                    chart.setPinchZoom(true)
+                }
+                ZoomAxis.X_ONLY -> {
+                    chart.isScaleXEnabled = true
+                    chart.isScaleYEnabled = false
+                    chart.setPinchZoom(false)
+                }
+                ZoomAxis.Y_ONLY -> {
+                    chart.isScaleXEnabled = false
+                    chart.isScaleYEnabled = true
+                    chart.setPinchZoom(false)
+                }
+            }
+
             // Marker needs to know current X semantics
             chart.marker = ChartMarkerView(chart.context, startTime, xIsRpm).also { it.chartView = chart }
 
