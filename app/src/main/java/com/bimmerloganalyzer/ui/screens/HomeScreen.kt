@@ -72,13 +72,30 @@ fun HomeScreen(viewModel: MainViewModel, onSessionLoaded: () -> Unit) {
             )
             Spacer(Modifier.height(40.dp))
 
-            // Local folder
+            // Local folder — remembers the picked folder across launches
+            val savedFolderName = remember(folderState, uiState) { viewModel.savedLocalFolderName() }
             ImportButton(
                 icon = Icons.Filled.FolderOpen,
-                label = "เปิดไฟล์จากเครื่อง",
-                subtitle = "เรียกดู CSV จาก storage",
-                onClick = { folderPicker.launch(null) },
+                label = if (savedFolderName != null) "เปิดจาก: $savedFolderName" else "เปิดไฟล์จากเครื่อง",
+                subtitle = if (savedFolderName != null) "จำ folder ไว้แล้ว · แตะเพื่อเรียกดู"
+                           else "เลือก folder ที่เก็บ CSV",
+                badge = if (savedFolderName != null) "Saved" else null,
+                onClick = {
+                    if (viewModel.savedLocalFolderUri() != null) viewModel.openSavedLocalFolder()
+                    else folderPicker.launch(null)
+                },
             )
+            if (savedFolderName != null) {
+                Spacer(Modifier.height(4.dp))
+                TextButton(
+                    onClick = { folderPicker.launch(null) },
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("เปลี่ยน folder", fontSize = 12.sp)
+                }
+            }
             Spacer(Modifier.height(16.dp))
 
             // OneDrive

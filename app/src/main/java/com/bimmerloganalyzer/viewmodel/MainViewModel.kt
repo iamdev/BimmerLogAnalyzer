@@ -2,6 +2,7 @@ package com.bimmerloganalyzer.viewmodel
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
@@ -43,6 +44,8 @@ enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, DYNO_EST
 /** Power display unit. PS = metric horsepower, BHP = imperial brake horsepower. */
 enum class PowerUnit(val label: String) { PS("PS"), BHP("HP") }
 
+private const val KEY_LOCAL_FOLDER = "local_folder_uri"
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val uiState: StateFlow<UiState> get() = _uiState
@@ -65,11 +68,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ── Local folder browser ────────────────────────────────────────────────
 
     private val localNavStack = ArrayDeque<String>() // folder URI strings, bottom = root
+    private val prefs = app.getSharedPreferences("bimmerlog_prefs", Context.MODE_PRIVATE)
+
+    /**
+     * The previously-picked local folder tree URI, but only if its persisted
+     * read permission is still granted. Returns null otherwise so the caller
+     * re-prompts. The persisted URI permission survives reboots, so a saved
+     * folder means we never have to ask again.
+     */
+    fun savedLocalFolderUri(): Uri? {
+        val saved = prefs.getString(KEY_LOCAL_FOLDER, null) ?: return null
+        val uri = Uri.parse(saved)
+        val stillGranted = getApplication<Application>().contentResolver
+            .persistedUriPermissions.any { it.uri == uri && it.isReadPermission }
+        return if (stillGranted) uri else null
+    }
+
+    /** Display name of the remembered folder, or null if none. */
+    fun savedLocalFolderName(): String? {
+        val uri = savedLocalFolderUri() ?: return null
+        return DocumentFile.fromTreeUri(getApplication(), uri)?.name
+    }
+
+    /** Re-open the remembered folder without showing the system picker. */
+    fun openSavedLocalFolder() {
+        val uri = savedLocalFolderUri() ?: return
+        localNavStack.clear()
+        localNavStack.addLast(uri.toString())
+        browseLocalAtStack()
+    }
 
     fun openLocalFolder(treeUri: Uri) {
         try {
             getApplication<Application>().contentResolver
                 .takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Remember the folder so we don't ask again next launch
+            prefs.edit().putString(KEY_LOCAL_FOLDER, treeUri.toString()).apply()
         } catch (_: SecurityException) {}
         localNavStack.clear()
         localNavStack.addLast(treeUri.toString())
