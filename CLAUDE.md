@@ -238,12 +238,15 @@ Credentials are **not** committed. `msal_config.json` (→
 
 ### OBDLineChart (MPAndroidChart Compose wrapper)
 
-- Drag, pinch-to-zoom, and pan are enabled; circles and value labels are off.
-- Dark background `#1E1E1E`; line width 1.8 pt.
-- Dual Y-axes supported (`rightAxis = true` per series).
-- X-axis formatter: if `startTime` is provided → absolute `HH:mm:ss`; otherwise
-  relative `"Xs"` seconds.
-- Data input: `List<ChartSeries>` (label, entries, color, optional right-axis flag).
+- Drag, independent X/Y pinch-to-zoom, double-tap zoom, and pan are enabled;
+  value labels are off. A `resetZoomKey: Int` param calls `fitScreen()` when it
+  changes (ChartScreen bumps it on tab switch / reset-zoom FAB).
+- Tap a point → `ChartMarkerView` tooltip (`res/layout/chart_marker.xml`) shows
+  the series label, X (clock time / RPM / seconds), and Y value.
+- `ChartSeries` flags: `yAxisRight`, `dashed` (estimated data), `drawCircles`,
+  `circlesOnly` (measured points, no line), `lineWidth`.
+- Dark background `#1E1E1E`. Dual Y-axes supported. X-axis formatter: `startTime`
+  → absolute `HH:mm:ss`; `xIsRpm` → RPM; otherwise relative `"Xs"` seconds.
 
 ### Chart Types (ChartScreen.kt)
 
@@ -251,10 +254,21 @@ Credentials are **not** committed. `msal_config.json` (→
 |-----|--------|
 | Speed vs Time | Speed (km/h) |
 | Torque vs Time | Torque (Nm) left + RPM/10 right |
-| Power vs Time | PS left + bhp right |
+| Power vs Time | Power in selected unit (PS/HP toggle) |
 | Dyno Curve | RPM (X) vs Torque & Power (full-throttle only) |
+| Dyno+Est | RPM-binned envelope; measured = circles, estimated = dashed |
 | Boost vs Time | Boost (bar) + Exhaust pressure (bar) |
 | Temp vs Time | Engine, Transmission, Ambient (°C) |
+
+- **Power unit toggle** (`PowerUnit` PS/HP) appears on Power and Dyno tabs and
+  drives both the chart series and the stats summary.
+- **Row reconstruction** (`CsvParser.compact()`): the logger streams **one value
+  per row**, carrying prior values forward, so many raw rows share the same
+  `Time`; only the last row of each consecutive equal-`Time` run is a complete
+  sample. If `Time` is absent/constant raw rows are returned unchanged.
+- **Dyno estimate** (`LogSession.dynoCurve`): full-throttle points are binned by
+  RPM (max torque per bin = envelope); empty bins are linearly interpolated and
+  flagged `estimated` so the UI draws them dashed vs circles for measured.
 
 ## CI (`.github/workflows/android-ci.yml`)
 
