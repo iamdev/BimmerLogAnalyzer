@@ -39,7 +39,7 @@ sealed class FolderBrowseState {
 }
 
 enum class CloudSource { ONEDRIVE, GOOGLE_DRIVE }
-enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, DYNO_ESTIMATE, BOOST_TIME, TEMP_TIME }
+enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, BOOST_TIME, TEMP_TIME }
 
 /** Power display unit. PS = metric horsepower, BHP = imperial brake horsepower. */
 enum class PowerUnit(val label: String) { PS("PS"), BHP("HP") }

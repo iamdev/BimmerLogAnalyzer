@@ -35,8 +35,7 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
     val selectedChart by viewModel.selectedChartType.collectAsState()
     val powerUnit by viewModel.powerUnit.collectAsState()
     val points = remember(session) { session.sampledPoints() }
-    val fullThrottle = remember(session) { session.fullThrottlePoints() }
-    val dynoEstimate = remember(session) { session.dynoCurve() }
+    val dynoCurve = remember(session) { session.dynoCurve() }
     val startTime = session.startTime
 
     // Bumping this resets zoom/pan on the active chart
@@ -46,8 +45,7 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
     LaunchedEffect(selectedChart) { resetZoomKey++ }
 
     val showPowerToggle = selectedChart == ChartType.POWER_TIME ||
-        selectedChart == ChartType.DYNO_CURVE ||
-        selectedChart == ChartType.DYNO_ESTIMATE
+        selectedChart == ChartType.DYNO_CURVE
 
     Scaffold(
         topBar = {
@@ -102,8 +100,7 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
                         ChartType.SPEED_TIME -> SpeedTimeChart(points, startTime, resetZoomKey)
                         ChartType.TORQUE_TIME -> TorqueTimeChart(points, startTime, resetZoomKey)
                         ChartType.POWER_TIME -> PowerTimeChart(points, startTime, powerUnit, resetZoomKey)
-                        ChartType.DYNO_CURVE -> DynoCurveChart(fullThrottle, powerUnit, resetZoomKey)
-                        ChartType.DYNO_ESTIMATE -> DynoEstimateChart(dynoEstimate, powerUnit, resetZoomKey)
+                        ChartType.DYNO_CURVE -> DynoCurveChart(dynoCurve, powerUnit, resetZoomKey)
                         ChartType.BOOST_TIME -> BoostTimeChart(points, startTime, resetZoomKey)
                         ChartType.TEMP_TIME -> TempTimeChart(points, startTime, resetZoomKey)
                     }
@@ -120,8 +117,8 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
             }
 
             val footer = when {
-                selectedChart == ChartType.DYNO_ESTIMATE ->
-                    "เส้นทึบ = วัดได้จริง · เส้นประ = ประมาณการณ์ (interpolate) · บีบนิ้วเพื่อซูม"
+                selectedChart == ChartType.DYNO_CURVE ->
+                    "เส้นทึบ+จุด = วัดได้จริง · เส้นประ = ประมาณการณ์ (interpolate) · บีบนิ้วเพื่อซูม"
                 startTime != null ->
                     "แกน X = เวลาจริง เริ่ม ${session.shortLabel} · บีบนิ้วเพื่อซูม · แตะจุดเพื่อดูค่า"
                 else ->
@@ -152,7 +149,6 @@ private fun ChartTypeSelector(selected: ChartType, onSelect: (ChartType) -> Unit
             ChartType.TORQUE_TIME to "Torque",
             ChartType.POWER_TIME to "Power",
             ChartType.DYNO_CURVE to "Dyno",
-            ChartType.DYNO_ESTIMATE to "Dyno+Est",
             ChartType.BOOST_TIME to "Boost",
             ChartType.TEMP_TIME to "Temp",
         ).forEach { (type, label) ->
@@ -271,27 +267,7 @@ private fun PowerTimeChart(points: List<OBDDataPoint>, startTime: LocalDateTime?
 }
 
 @Composable
-private fun DynoCurveChart(points: List<OBDDataPoint>, unit: PowerUnit, resetKey: Int) {
-    if (points.isEmpty()) {
-        EmptyDyno()
-        return
-    }
-    OBDLineChart(
-        series = listOf(
-            ChartSeries("Torque (Nm)", points.map { Entry(it.rpm, it.torqueNm) }, AndroidColor.parseColor("#00E676")),
-            ChartSeries("Power (${unit.label})", points.map { Entry(it.rpm, it.power(unit)) }, AndroidColor.parseColor("#FF6D00"), yAxisRight = true),
-        ),
-        xLabel = "RPM",
-        yLabel = "Torque (Nm)",
-        yLabelRight = "Power (${unit.label})",
-        xIsRpm = true,
-        resetZoomKey = resetKey,
-        modifier = Modifier.fillMaxSize(),
-    )
-}
-
-@Composable
-private fun DynoEstimateChart(curve: List<DynoPoint>, unit: PowerUnit, resetKey: Int) {
+private fun DynoCurveChart(curve: List<DynoPoint>, unit: PowerUnit, resetKey: Int) {
     if (curve.isEmpty()) {
         EmptyDyno()
         return
@@ -301,16 +277,16 @@ private fun DynoEstimateChart(curve: List<DynoPoint>, unit: PowerUnit, resetKey:
 
     OBDLineChart(
         series = listOf(
-            // Continuous estimate-filled envelope (dashed)
+            // Estimate-filled envelope across the full RPM range (dashed, underlay)
             ChartSeries("Torque (Nm) ~est", curve.map { Entry(it.rpm, it.torqueNm) },
                 AndroidColor.parseColor("#00E676"), dashed = true),
             ChartSeries("Power (${unit.label}) ~est", curve.map { Entry(it.rpm, power(it)) },
                 AndroidColor.parseColor("#FF6D00"), yAxisRight = true, dashed = true),
-            // Measured points overlaid as circles
-            ChartSeries("Torque measured", measured.map { Entry(it.rpm, it.torqueNm) },
-                AndroidColor.parseColor("#00E676"), circlesOnly = true),
-            ChartSeries("Power measured", measured.map { Entry(it.rpm, power(it)) },
-                AndroidColor.parseColor("#FF6D00"), yAxisRight = true, circlesOnly = true),
+            // Measured points: solid line connecting them + circle markers
+            ChartSeries("Torque (Nm)", measured.map { Entry(it.rpm, it.torqueNm) },
+                AndroidColor.parseColor("#00E676"), drawCircles = true, lineWidth = 2.2f),
+            ChartSeries("Power (${unit.label})", measured.map { Entry(it.rpm, power(it)) },
+                AndroidColor.parseColor("#FF6D00"), yAxisRight = true, drawCircles = true, lineWidth = 2.2f),
         ),
         xLabel = "RPM",
         yLabel = "Torque (Nm)",
@@ -325,7 +301,7 @@ private fun DynoEstimateChart(curve: List<DynoPoint>, unit: PowerUnit, resetKey:
 private fun EmptyDyno() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            "ยังไม่มีข้อมูล Full Throttle\nกดคันเร่ง ≥ 95% เพื่อเห็น Dyno Curve",
+            "ยังไม่มีข้อมูล RPM/Torque ที่ใช้สร้าง Dyno ได้",
             color = MaterialTheme.colorScheme.onSurface.copy(0.4f),
         )
     }
