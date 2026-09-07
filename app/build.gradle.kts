@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.bimmerloganalyzer"
+    namespace = "com.bimmerdyno"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.bimmerloganalyzer"
+        applicationId = "com.bimmerdyno"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
@@ -17,7 +17,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Microsoft MSAL redirect URI
-        manifestPlaceholders["msalRedirectUri"] = "msauth://com.bimmerloganalyzer/PLACEHOLDER_HASH"
+        manifestPlaceholders["msalRedirectUri"] = "msauth://com.bimmerdyno/PLACEHOLDER_HASH"
     }
 
     signingConfigs {

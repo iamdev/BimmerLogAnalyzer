@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer.cloud
+package com.bimmerdyno.cloud
 
 import android.content.Context
 import android.content.Intent
@@ -48,7 +48,7 @@ class GoogleDriveHelper(private val context: Context) {
             NetHttpTransport(),
             GsonFactory.getDefaultInstance(),
             credential
-        ).setApplicationName("BimmerLogAnalyzer").build()
+        ).setApplicationName("BimmerDyno").build()
     }
 
     // ── Folder navigation ───────────────────────────────────────────────────

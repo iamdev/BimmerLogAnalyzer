@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer.cloud
+package com.bimmerdyno.cloud
 
 data class CloudFile(
     val id: String,

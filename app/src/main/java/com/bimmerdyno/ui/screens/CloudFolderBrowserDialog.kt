@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer.ui.screens
+package com.bimmerdyno.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,13 +18,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bimmerloganalyzer.cloud.CloudFile
-import com.bimmerloganalyzer.cloud.CloudFolder
-import com.bimmerloganalyzer.cloud.CloudFolderContents
-import com.bimmerloganalyzer.data.LogFileName
-import com.bimmerloganalyzer.viewmodel.CloudSource
-import com.bimmerloganalyzer.viewmodel.FolderBrowseState
-import com.bimmerloganalyzer.viewmodel.MainViewModel
+import com.bimmerdyno.cloud.CloudFile
+import com.bimmerdyno.cloud.CloudFolder
+import com.bimmerdyno.cloud.CloudFolderContents
+import com.bimmerdyno.data.LogFileName
+import com.bimmerdyno.viewmodel.CloudSource
+import com.bimmerdyno.viewmodel.FolderBrowseState
+import com.bimmerdyno.viewmodel.MainViewModel
 
 @Composable
 fun CloudFolderBrowserHost(
@@ -44,8 +44,8 @@ fun CloudFolderBrowserHost(
                 },
                 onBrowseRoot = {
                     val root = when (state.source) {
-                        CloudSource.ONEDRIVE -> com.bimmerloganalyzer.cloud.OneDriveHelper.ROOT_FOLDER
-                        CloudSource.GOOGLE_DRIVE -> com.bimmerloganalyzer.cloud.GoogleDriveHelper.ROOT_FOLDER
+                        CloudSource.ONEDRIVE -> com.bimmerdyno.cloud.OneDriveHelper.ROOT_FOLDER
+                        CloudSource.GOOGLE_DRIVE -> com.bimmerdyno.cloud.GoogleDriveHelper.ROOT_FOLDER
                     }
                     when (state.source) {
                         CloudSource.ONEDRIVE -> viewModel.navigateToOneDriveFolder(root)

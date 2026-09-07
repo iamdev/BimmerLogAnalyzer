@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer.ui.screens
+package com.bimmerdyno.ui.screens
 
 import android.app.Activity
 import android.net.Uri
@@ -16,9 +16,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bimmerloganalyzer.viewmodel.FolderBrowseState
-import com.bimmerloganalyzer.viewmodel.MainViewModel
-import com.bimmerloganalyzer.viewmodel.UiState
+import com.bimmerdyno.viewmodel.FolderBrowseState
+import com.bimmerdyno.viewmodel.MainViewModel
+import com.bimmerdyno.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +42,7 @@ fun HomeScreen(viewModel: MainViewModel, onSessionLoaded: () -> Unit) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("BimmerLog Analyzer", fontWeight = FontWeight.Bold) },
+                title = { Text("BimmerDyno", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.primary,

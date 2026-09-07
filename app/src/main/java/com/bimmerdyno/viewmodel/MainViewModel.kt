@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer.viewmodel
+package com.bimmerdyno.viewmodel
 
 import android.app.Activity
 import android.app.Application
@@ -8,13 +8,13 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.bimmerloganalyzer.cloud.CloudFile
-import com.bimmerloganalyzer.cloud.CloudFolder
-import com.bimmerloganalyzer.cloud.CloudFolderContents
-import com.bimmerloganalyzer.cloud.GoogleDriveHelper
-import com.bimmerloganalyzer.cloud.OneDriveHelper
-import com.bimmerloganalyzer.data.CsvParser
-import com.bimmerloganalyzer.data.LogSession
+import com.bimmerdyno.cloud.CloudFile
+import com.bimmerdyno.cloud.CloudFolder
+import com.bimmerdyno.cloud.CloudFolderContents
+import com.bimmerdyno.cloud.GoogleDriveHelper
+import com.bimmerdyno.cloud.OneDriveHelper
+import com.bimmerdyno.data.CsvParser
+import com.bimmerdyno.data.LogSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -68,7 +68,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ── Local folder browser ────────────────────────────────────────────────
 
     private val localNavStack = ArrayDeque<String>() // folder URI strings, bottom = root
-    private val prefs = app.getSharedPreferences("bimmerlog_prefs", Context.MODE_PRIVATE)
+    private val prefs = app.getSharedPreferences("bimmerdyno_prefs", Context.MODE_PRIVATE)
 
     /**
      * The previously-picked local folder tree URI, but only if its persisted

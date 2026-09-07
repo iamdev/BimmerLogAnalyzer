@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer.data
+package com.bimmerdyno.data
 
 import java.io.InputStream
 

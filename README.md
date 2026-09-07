@@ -1,4 +1,4 @@
-# BimmerLog Analyzer
+# BimmerDyno
 
 **Android app สำหรับวิเคราะห์ข้อมูล OBD จากรถยนต์ BMW (และรถยนต์ทั่วไป)**  
 อ่านไฟล์ CSV จาก OBD Logger แล้วแสดงกราฟ Speed / Torque / Horsepower แบบ Interactive
@@ -86,7 +86,7 @@ Ambient temperature ° C,Engine temperature ° C,Transmission oil temperature °
 ## Project Structure
 
 ```
-app/src/main/java/com/bimmerloganalyzer/
+app/src/main/java/com/bimmerdyno/
 ├── MainActivity.kt                    # Entry point + Navigation
 ├── data/
 │   ├── OBDDataPoint.kt                # Data model, HP calculation
@@ -120,7 +120,7 @@ cd BimmerLogAnalyzer
 ### 2. OneDrive Integration (Optional)
 
 1. ไปที่ [portal.azure.com](https://portal.azure.com) → **App registrations** → New registration
-2. Platform: **Android** | Package: `com.bimmerloganalyzer`
+2. Platform: **Android** | Package: `com.bimmerdyno`
 3. คัดลอก **Client ID** และ **Signature Hash**
 4. สร้างไฟล์จาก template:
    ```bash
@@ -140,7 +140,7 @@ cd BimmerLogAnalyzer
 
 1. ไปที่ [console.cloud.google.com](https://console.cloud.google.com) → สร้าง project
 2. Enable **Google Drive API**
-3. OAuth 2.0 Client ID → Android | Package: `com.bimmerloganalyzer`
+3. OAuth 2.0 Client ID → Android | Package: `com.bimmerdyno`
 4. ดาวน์โหลด `google-services.json` วางไว้ที่ `app/google-services.json`
 5. เพิ่ม plugin ใน `app/build.gradle.kts`:
    ```kotlin

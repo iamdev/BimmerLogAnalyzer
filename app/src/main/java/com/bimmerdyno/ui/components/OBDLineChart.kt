@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer.ui.components
+package com.bimmerdyno.ui.components
 
 import android.graphics.Color
 import android.view.ViewGroup

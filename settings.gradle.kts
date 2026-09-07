@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "BimmerLogAnalyzer"
+rootProject.name = "BimmerDyno"
 include(":app")

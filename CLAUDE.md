@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-**BimmerLog Analyzer** — Android app that reads OBD logger CSV files (BMW and
+**BimmerDyno** — Android app that reads OBD logger CSV files (BMW and
 generic) and renders interactive Speed / Torque / Horsepower charts. Files can
 be opened from local storage, Microsoft OneDrive, or Google Drive.
 
@@ -26,14 +26,14 @@ be opened from local storage, Microsoft OneDrive, or Google Drive.
 ## Repository Layout
 
 ```
-BimmerLogAnalyzer/
+BimmerDyno/
 ├── app/
 │   ├── build.gradle.kts
 │   ├── google-services.json.template      # shape doc for Firebase config
 │   ├── proguard-rules.pro
 │   └── src/main/
 │       ├── AndroidManifest.xml
-│       ├── java/com/bimmerloganalyzer/
+│       ├── java/com/bimmerdyno/
 │       │   ├── MainActivity.kt            # NavHost, external CSV intent handling
 │       │   ├── cloud/
 │       │   │   ├── CloudFolder.kt         # CloudFile, CloudFolder, CloudFolderContents
@@ -125,7 +125,7 @@ Two routes in `NavHost`:
 - `"chart"` → `ChartScreen` — only reachable when `UiState.Success`.
 
 MSAL OAuth redirect activity (`BrowserTabActivity`) is registered in the manifest
-with scheme `msauth://com.bimmerloganalyzer/PLACEHOLDER_HASH`.
+with scheme `msauth://com.bimmerdyno/PLACEHOLDER_HASH`.
 
 ## Domain Knowledge
 

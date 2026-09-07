@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer
+package com.bimmerdyno
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -9,11 +9,11 @@ import androidx.compose.runtime.*
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.bimmerloganalyzer.ui.screens.ChartScreen
-import com.bimmerloganalyzer.ui.screens.HomeScreen
-import com.bimmerloganalyzer.ui.theme.BimmerTheme
-import com.bimmerloganalyzer.viewmodel.MainViewModel
-import com.bimmerloganalyzer.viewmodel.UiState
+import com.bimmerdyno.ui.screens.ChartScreen
+import com.bimmerdyno.ui.screens.HomeScreen
+import com.bimmerdyno.ui.theme.BimmerTheme
+import com.bimmerdyno.viewmodel.MainViewModel
+import com.bimmerdyno.viewmodel.UiState
 
 class MainActivity : ComponentActivity() {
 

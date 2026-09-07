@@ -1,8 +1,8 @@
-package com.bimmerloganalyzer.cloud
+package com.bimmerdyno.cloud
 
 import android.app.Activity
 import android.content.Context
-import com.bimmerloganalyzer.R
+import com.bimmerdyno.R
 import com.microsoft.identity.client.*
 import com.microsoft.identity.client.exception.MsalException
 import kotlinx.coroutines.Dispatchers

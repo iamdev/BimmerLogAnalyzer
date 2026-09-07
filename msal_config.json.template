@@ -1,7 +1,7 @@
 {
   "client_id": "YOUR_AZURE_CLIENT_ID",
   "authorization_user_agent": "DEFAULT",
-  "redirect_uri": "msauth://com.bimmerloganalyzer/YOUR_SIGNATURE_HASH",
+  "redirect_uri": "msauth://com.bimmerdyno/YOUR_SIGNATURE_HASH",
   "broker_redirect_uri_registered": false,
   "authorities": [
     {
