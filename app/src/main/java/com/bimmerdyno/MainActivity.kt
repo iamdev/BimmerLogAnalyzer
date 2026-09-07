@@ -11,6 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.bimmerdyno.ui.screens.ChartScreen
 import com.bimmerdyno.ui.screens.HomeScreen
+import com.bimmerdyno.ui.screens.SettingsScreen
 import com.bimmerdyno.ui.theme.BimmerTheme
 import com.bimmerdyno.viewmodel.MainViewModel
 import com.bimmerdyno.viewmodel.UiState
@@ -32,8 +33,6 @@ class MainActivity : ComponentActivity() {
             viewModel.loadLocalFile(uri, name)
         }
 
-        viewModel.initOneDrive()
-
         setContent {
             BimmerTheme {
                 val navController = rememberNavController()
@@ -47,11 +46,24 @@ class MainActivity : ComponentActivity() {
                                 navController.navigate("chart") {
                                     launchSingleTop = true
                                 }
-                            }
+                            },
+                            onOpenSettings = {
+                                navController.navigate("settings") {
+                                    launchSingleTop = true
+                                }
+                            },
                         )
                     }
                     composable("chart") {
                         val session = (uiState as? UiState.Success)?.session
+                        // A mapping change re-parses the open log; if that parse
+                        // now fails there is nothing to draw, so fall back home
+                        // rather than leaving a blank chart screen behind.
+                        LaunchedEffect(uiState) {
+                            if (uiState is UiState.Error || uiState is UiState.Idle) {
+                                navController.popBackStack("home", inclusive = false)
+                            }
+                        }
                         if (session != null) {
                             ChartScreen(
                                 viewModel = viewModel,
@@ -59,9 +71,20 @@ class MainActivity : ComponentActivity() {
                                 onBack = {
                                     viewModel.reset()
                                     navController.popBackStack()
-                                }
+                                },
+                                onOpenSettings = {
+                                    navController.navigate("settings") {
+                                        launchSingleTop = true
+                                    }
+                                },
                             )
                         }
+                    }
+                    composable("settings") {
+                        SettingsScreen(
+                            viewModel = viewModel,
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                 }
             }

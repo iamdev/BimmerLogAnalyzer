@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ZoomOutMap
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,7 +32,12 @@ import java.time.LocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Unit) {
+fun ChartScreen(
+    viewModel: MainViewModel,
+    session: LogSession,
+    onBack: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val selectedChart by viewModel.selectedChartType.collectAsState()
     val powerUnit by viewModel.powerUnit.collectAsState()
     val points = remember(session) { session.sampledPoints() }
@@ -70,6 +76,7 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
                 },
                 actions = {
                     IconButton(onClick = onBack) { Icon(Icons.Filled.FolderOpen, "เปิดไฟล์อื่น") }
+                    IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, "ตั้งค่า") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,

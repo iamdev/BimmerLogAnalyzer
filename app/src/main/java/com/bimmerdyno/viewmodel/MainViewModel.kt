@@ -1,21 +1,21 @@
 package com.bimmerdyno.viewmodel
 
-import android.app.Activity
 import android.app.Application
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.bimmerdyno.cloud.CloudFile
-import com.bimmerdyno.cloud.CloudFolder
-import com.bimmerdyno.cloud.CloudFolderContents
-import com.bimmerdyno.cloud.GoogleDriveHelper
-import com.bimmerdyno.cloud.OneDriveHelper
 import com.bimmerdyno.data.CsvParser
+import com.bimmerdyno.data.FieldMapping
+import com.bimmerdyno.data.FolderContents
+import com.bimmerdyno.data.LogField
+import com.bimmerdyno.data.LogFile
+import com.bimmerdyno.data.LogFolder
 import com.bimmerdyno.data.LogSession
+import com.bimmerdyno.data.SettingsStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -31,20 +31,14 @@ sealed class UiState {
 sealed class FolderBrowseState {
     object Idle : FolderBrowseState()
     object Loading : FolderBrowseState()
-    /** Waiting for user to enter/confirm a path before browsing */
-    data class PathInput(val source: CloudSource, val currentPath: String = "/") : FolderBrowseState()
-    data class Browsing(val contents: CloudFolderContents, val source: CloudSource) : FolderBrowseState()
-    data class LocalBrowsing(val contents: CloudFolderContents) : FolderBrowseState()
-    data class Error(val message: String, val source: CloudSource) : FolderBrowseState()
+    data class Browsing(val contents: FolderContents) : FolderBrowseState()
+    data class Error(val message: String) : FolderBrowseState()
 }
 
-enum class CloudSource { ONEDRIVE, GOOGLE_DRIVE }
 enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, DYNO_ESTIMATE, BOOST_TIME, TEMP_TIME }
 
 /** Power display unit. PS = metric horsepower, BHP = imperial brake horsepower. */
 enum class PowerUnit(val label: String) { PS("PS"), BHP("HP") }
-
-private const val KEY_LOCAL_FOLDER = "local_folder_uri"
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -60,15 +54,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val powerUnit: StateFlow<PowerUnit> get() = _powerUnit
     private val _powerUnit = MutableStateFlow(PowerUnit.PS)
 
-    val oneDrive = OneDriveHelper(app)
-    val googleDrive = GoogleDriveHelper(app)
+    private val settings = SettingsStore(app)
 
-    private var oneDriveToken: String? = null
+    /** Column overrides applied to every parse. */
+    val fieldMapping: StateFlow<FieldMapping> get() = _fieldMapping
+    private val _fieldMapping = MutableStateFlow(settings.loadMapping())
+
+    /**
+     * Column names available to pick from in Settings: the header of the file
+     * loaded in this session, falling back to the last one seen on a previous
+     * run so the picker is useful straight after launch.
+     */
+    val availableColumns: StateFlow<List<String>> get() = _availableColumns
+    private val _availableColumns = MutableStateFlow(settings.lastKnownColumns)
+
+    /** Last opened file, so a mapping change can re-parse it in place. */
+    private var lastLoaded: Pair<Uri, String>? = null
+
+    private var parseJob: Job? = null
 
     // ── Local folder browser ────────────────────────────────────────────────
 
     private val localNavStack = ArrayDeque<String>() // folder URI strings, bottom = root
-    private val prefs = app.getSharedPreferences("bimmerdyno_prefs", Context.MODE_PRIVATE)
 
     /**
      * The previously-picked local folder tree URI, but only if its persisted
@@ -77,7 +84,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * folder means we never have to ask again.
      */
     fun savedLocalFolderUri(): Uri? {
-        val saved = prefs.getString(KEY_LOCAL_FOLDER, null) ?: return null
+        val saved = settings.localFolderUri ?: return null
         val uri = Uri.parse(saved)
         val stillGranted = getApplication<Application>().contentResolver
             .persistedUriPermissions.any { it.uri == uri && it.isReadPermission }
@@ -103,7 +110,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             getApplication<Application>().contentResolver
                 .takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             // Remember the folder so we don't ask again next launch
-            prefs.edit().putString(KEY_LOCAL_FOLDER, treeUri.toString()).apply()
+            settings.localFolderUri = treeUri.toString()
         } catch (_: SecurityException) {}
         localNavStack.clear()
         localNavStack.addLast(treeUri.toString())
@@ -121,7 +128,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         browseLocalAtStack()
     }
 
-    fun loadLocalFileFromBrowser(file: CloudFile) {
+    fun loadLocalFileFromBrowser(file: LogFile) {
         _folderBrowseState.value = FolderBrowseState.Idle
         loadLocalFile(Uri.parse(file.id), file.name)
     }
@@ -139,10 +146,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val parentDoc = parentUri?.let { DocumentFile.fromTreeUri(app, Uri.parse(it)) }
                     buildLocalFolderContents(currentDoc, parentDoc)
                 }.onSuccess { contents ->
-                    _folderBrowseState.value = FolderBrowseState.LocalBrowsing(contents)
+                    _folderBrowseState.value = FolderBrowseState.Browsing(contents)
                 }.onFailure {
                     _folderBrowseState.value = FolderBrowseState.Error(
-                        it.message ?: "ไม่สามารถเปิด folder ได้", CloudSource.ONEDRIVE
+                        it.message ?: "ไม่สามารถเปิด folder ได้"
                     )
                 }
             }
@@ -152,28 +159,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun buildLocalFolderContents(
         docFile: DocumentFile,
         parentDocFile: DocumentFile?,
-    ): CloudFolderContents {
-        val subFolders = mutableListOf<CloudFolder>()
-        val csvFiles = mutableListOf<CloudFile>()
+    ): FolderContents {
+        val subFolders = mutableListOf<LogFolder>()
+        val csvFiles = mutableListOf<LogFile>()
         docFile.listFiles().forEach { child ->
             val name = child.name ?: return@forEach
             when {
                 child.isDirectory -> subFolders.add(
-                    CloudFolder(id = child.uri.toString(), name = name, path = name)
+                    LogFolder(id = child.uri.toString(), name = name, path = name)
                 )
                 child.isFile && name.endsWith(".csv", ignoreCase = true) -> csvFiles.add(
-                    CloudFile(id = child.uri.toString(), name = name, size = child.length())
+                    LogFile(id = child.uri.toString(), name = name, size = child.length())
                 )
             }
         }
-        return CloudFolderContents(
-            currentFolder = CloudFolder(
+        return FolderContents(
+            currentFolder = LogFolder(
                 id = docFile.uri.toString(),
                 name = docFile.name ?: "/",
                 path = docFile.name ?: "/",
             ),
             parentFolder = parentDocFile?.let {
-                CloudFolder(id = it.uri.toString(), name = it.name ?: "..", path = it.name ?: "..")
+                LogFolder(id = it.uri.toString(), name = it.name ?: "..", path = it.name ?: "..")
             },
             subFolders = subFolders.sortedBy { it.name },
             csvFiles = csvFiles,
@@ -183,15 +190,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ── Local file ──────────────────────────────────────────────────────────
 
     fun loadLocalFile(uri: Uri, fileName: String) {
-        viewModelScope.launch {
+        lastLoaded = uri to fileName
+        // Changing several mappings in a row queues several re-parses; without
+        // this the slowest one could land last and win.
+        parseJob?.cancel()
+        parseJob = viewModelScope.launch {
             _uiState.value = UiState.Loading
             withContext(Dispatchers.IO) {
                 try {
                     val stream = getApplication<Application>().contentResolver.openInputStream(uri)
                         ?: throw Exception("Cannot open file")
-                    val points = CsvParser.parse(stream)
-                    if (points.isEmpty()) throw Exception("No valid data found in CSV")
-                    _uiState.value = UiState.Success(LogSession(fileName, points))
+                    val parsed = stream.use { CsvParser.parse(it, _fieldMapping.value) }
+                    parsed.header?.columns?.takeIf { it.isNotEmpty() }?.let { rememberColumns(it) }
+                    if (parsed.points.isEmpty()) throw Exception("No valid data found in CSV")
+                    _uiState.value = UiState.Success(LogSession(fileName, parsed.points))
                 } catch (e: Exception) {
                     _uiState.value = UiState.Error(e.message ?: "Failed to load file")
                 }
@@ -199,158 +211,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── OneDrive ────────────────────────────────────────────────────────────
-
-    fun initOneDrive() {
-        viewModelScope.launch { runCatching { oneDrive.initialize() } }
+    private fun rememberColumns(columns: List<String>) {
+        _availableColumns.value = columns
+        settings.lastKnownColumns = columns
     }
 
-    fun signInOneDrive(activity: Activity) {
-        viewModelScope.launch {
-            _folderBrowseState.value = FolderBrowseState.Loading
-            oneDrive.signIn(activity).onSuccess { token ->
-                oneDriveToken = token
-                // After sign-in, show path input dialog
-                _folderBrowseState.value = FolderBrowseState.PathInput(CloudSource.ONEDRIVE)
-            }.onFailure {
-                _folderBrowseState.value = FolderBrowseState.Error(
-                    it.message ?: "OneDrive sign-in failed", CloudSource.ONEDRIVE
-                )
-            }
+    // ── Field mapping ───────────────────────────────────────────────────────
+
+    /** Bind [field] to [column]; a null [column] restores auto-detection. */
+    fun setFieldMapping(field: LogField, column: String?) {
+        updateMapping(_fieldMapping.value.with(field, column))
+    }
+
+    /** Drop every override and go back to keyword auto-detection. */
+    fun resetFieldMapping() = updateMapping(FieldMapping.AUTO)
+
+    private fun updateMapping(mapping: FieldMapping) {
+        _fieldMapping.value = mapping
+        settings.saveMapping(mapping)
+        // Re-parse the open log so the change is visible without reopening it.
+        lastLoaded?.let { (uri, name) ->
+            if (_uiState.value is UiState.Success) loadLocalFile(uri, name)
         }
     }
 
-    fun openOneDriveBrowser() {
-        if (oneDrive.isSignedIn) {
-            _folderBrowseState.value = FolderBrowseState.PathInput(CloudSource.ONEDRIVE)
-        }
-    }
-
-    fun navigateToOneDriveFolder(folder: CloudFolder) {
-        val token = oneDriveToken ?: return
+    /**
+     * Read the header of [uri] so Settings can offer that file's real column
+     * names. Errors are silent: the picker simply keeps the columns it had.
+     */
+    fun loadColumnsFrom(uri: Uri) {
         viewModelScope.launch {
-            _folderBrowseState.value = FolderBrowseState.Loading
-            oneDrive.listFolderContents(token, folder).onSuccess { contents ->
-                _folderBrowseState.value = FolderBrowseState.Browsing(contents, CloudSource.ONEDRIVE)
-            }.onFailure {
-                _folderBrowseState.value = FolderBrowseState.Error(
-                    it.message ?: "Cannot open folder", CloudSource.ONEDRIVE
-                )
-            }
-        }
-    }
-
-    fun navigateToOneDrivePath(path: String) {
-        val token = oneDriveToken ?: return
-        viewModelScope.launch {
-            _folderBrowseState.value = FolderBrowseState.Loading
-            oneDrive.folderByPath(token, path).onSuccess { folder ->
-                oneDrive.listFolderContents(token, folder).onSuccess { contents ->
-                    _folderBrowseState.value = FolderBrowseState.Browsing(contents, CloudSource.ONEDRIVE)
-                }.onFailure {
-                    _folderBrowseState.value = FolderBrowseState.Error(
-                        it.message ?: "Cannot list folder", CloudSource.ONEDRIVE
-                    )
-                }
-            }.onFailure {
-                _folderBrowseState.value = FolderBrowseState.Error(
-                    it.message ?: "Path not found", CloudSource.ONEDRIVE
-                )
-            }
-        }
-    }
-
-    fun downloadOneDriveFile(file: CloudFile) {
-        val token = oneDriveToken ?: return
-        viewModelScope.launch {
-            _uiState.value = UiState.Loading
-            _folderBrowseState.value = FolderBrowseState.Idle
             withContext(Dispatchers.IO) {
-                oneDrive.downloadFile(token, file.id).onSuccess { stream ->
-                    try {
-                        val points = CsvParser.parse(stream)
-                        if (points.isEmpty()) throw Exception("No valid data found")
-                        _uiState.value = UiState.Success(LogSession(file.name, points))
-                    } catch (e: Exception) {
-                        _uiState.value = UiState.Error(e.message ?: "Parse error")
-                    }
-                }.onFailure {
-                    _uiState.value = UiState.Error(it.message ?: "Download failed")
-                }
+                runCatching {
+                    getApplication<Application>().contentResolver.openInputStream(uri)
+                        ?.use { CsvParser.readHeader(it) }
+                }.getOrNull()?.columns?.takeIf { it.isNotEmpty() }?.let { rememberColumns(it) }
             }
         }
     }
 
-    // ── Google Drive ────────────────────────────────────────────────────────
-
-    fun handleGoogleSignInResult(data: Intent?) {
-        viewModelScope.launch {
-            googleDrive.handleSignInResult(data).onSuccess {
-                _folderBrowseState.value = FolderBrowseState.PathInput(CloudSource.GOOGLE_DRIVE)
-            }.onFailure {
-                _folderBrowseState.value = FolderBrowseState.Error(
-                    it.message ?: "Google sign-in failed", CloudSource.GOOGLE_DRIVE
-                )
-            }
-        }
-    }
-
-    fun openGoogleDriveBrowser() {
-        if (googleDrive.isSignedIn) {
-            _folderBrowseState.value = FolderBrowseState.PathInput(CloudSource.GOOGLE_DRIVE)
-        }
-    }
-
-    fun navigateToGoogleDriveFolder(folder: CloudFolder) {
-        viewModelScope.launch {
-            _folderBrowseState.value = FolderBrowseState.Loading
-            googleDrive.listFolderContents(folder).onSuccess { contents ->
-                _folderBrowseState.value = FolderBrowseState.Browsing(contents, CloudSource.GOOGLE_DRIVE)
-            }.onFailure {
-                _folderBrowseState.value = FolderBrowseState.Error(
-                    it.message ?: "Cannot open folder", CloudSource.GOOGLE_DRIVE
-                )
-            }
-        }
-    }
-
-    fun navigateToGoogleDrivePath(path: String) {
-        viewModelScope.launch {
-            _folderBrowseState.value = FolderBrowseState.Loading
-            googleDrive.folderByPath(path).onSuccess { folder ->
-                googleDrive.listFolderContents(folder).onSuccess { contents ->
-                    _folderBrowseState.value = FolderBrowseState.Browsing(contents, CloudSource.GOOGLE_DRIVE)
-                }.onFailure {
-                    _folderBrowseState.value = FolderBrowseState.Error(
-                        it.message ?: "Cannot list folder", CloudSource.GOOGLE_DRIVE
-                    )
-                }
-            }.onFailure {
-                _folderBrowseState.value = FolderBrowseState.Error(
-                    it.message ?: "Path not found", CloudSource.GOOGLE_DRIVE
-                )
-            }
-        }
-    }
-
-    fun downloadGoogleDriveFile(file: CloudFile) {
-        viewModelScope.launch {
-            _uiState.value = UiState.Loading
-            _folderBrowseState.value = FolderBrowseState.Idle
-            withContext(Dispatchers.IO) {
-                googleDrive.downloadFile(file.id).onSuccess { stream ->
-                    try {
-                        val points = CsvParser.parse(stream)
-                        if (points.isEmpty()) throw Exception("No valid data found")
-                        _uiState.value = UiState.Success(LogSession(file.name, points))
-                    } catch (e: Exception) {
-                        _uiState.value = UiState.Error(e.message ?: "Parse error")
-                    }
-                }.onFailure {
-                    _uiState.value = UiState.Error(it.message ?: "Download failed")
-                }
-            }
-        }
+    /** Which column each field actually resolves to for the current header. */
+    fun resolvedColumns(): Map<LogField, String?> {
+        val columns = _availableColumns.value
+        if (columns.isEmpty()) return emptyMap()
+        return CsvParser.resolveIndices(columns, _fieldMapping.value)
+            .mapValues { (_, idx) -> columns.getOrNull(idx) }
     }
 
     // ── Common ───────────────────────────────────────────────────────────────
