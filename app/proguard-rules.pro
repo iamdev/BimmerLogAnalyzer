@@ -1,5 +1,1 @@
--keep class com.microsoft.identity.** { *; }
--keep class com.google.api.** { *; }
--keep class com.google.android.gms.** { *; }
--dontwarn com.google.api.**
 -dontwarn okio.**

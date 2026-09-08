@@ -38,17 +38,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # ── Inject credentials from GitHub Secrets ──────────────────────────
-      - name: Create msal_config.json from secret
-        run: |
-          mkdir -p app/src/main/res/raw
-          echo '${{ secrets.MSAL_CONFIG_JSON }}' > app/src/main/res/raw/msal_config.json
-        # Secret MSAL_CONFIG_JSON = full JSON content of msal_config.json
-
-      - name: Create google-services.json from secret
-        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
-        # Secret GOOGLE_SERVICES_JSON = full JSON content of google-services.json
-
       # ── Build ────────────────────────────────────────────────────────────
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
@@ -104,14 +93,3 @@ jobs:
                     `**Commit:** \`${{ github.event.pull_request.head.sha }}\``
             })
 
-  # Separate job: check that credential templates exist
-  validate-templates:
-    name: Validate Config Templates
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check templates present
-        run: |
-          test -f msal_config.json.template || (echo "Missing msal_config template" && exit 1)
-          test -f app/google-services.json.template || (echo "Missing google-services template" && exit 1)
-          echo "All templates present ✓"

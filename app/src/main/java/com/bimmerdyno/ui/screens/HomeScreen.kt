@@ -1,6 +1,5 @@
-package com.bimmerloganalyzer.ui.screens
+package com.bimmerdyno.ui.screens
 
-import android.app.Activity
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,18 +11,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bimmerloganalyzer.viewmodel.FolderBrowseState
-import com.bimmerloganalyzer.viewmodel.MainViewModel
-import com.bimmerloganalyzer.viewmodel.UiState
+import com.bimmerdyno.viewmodel.MainViewModel
+import com.bimmerdyno.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: MainViewModel, onSessionLoaded: () -> Unit) {
-    val context = LocalContext.current
+fun HomeScreen(
+    viewModel: MainViewModel,
+    onSessionLoaded: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsState()
     val folderState by viewModel.folderBrowseState.collectAsState()
 
@@ -35,14 +35,15 @@ fun HomeScreen(viewModel: MainViewModel, onSessionLoaded: () -> Unit) {
         uri?.let { viewModel.openLocalFolder(it) }
     }
 
-    val googleSignInLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result -> viewModel.handleGoogleSignInResult(result.data) }
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("BimmerLog Analyzer", fontWeight = FontWeight.Bold) },
+                title = { Text("BimmerDyno", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, "ตั้งค่า")
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.primary,
@@ -96,32 +97,6 @@ fun HomeScreen(viewModel: MainViewModel, onSessionLoaded: () -> Unit) {
                     Text("เปลี่ยน folder", fontSize = 12.sp)
                 }
             }
-            Spacer(Modifier.height(16.dp))
-
-            // OneDrive
-            ImportButton(
-                icon = Icons.Filled.Cloud,
-                label = "OneDrive",
-                subtitle = if (viewModel.oneDrive.isSignedIn) "แตะเพื่อเลือก folder" else "Sign in ด้วย Microsoft account",
-                badge = if (viewModel.oneDrive.isSignedIn) "Connected" else null,
-                onClick = {
-                    if (viewModel.oneDrive.isSignedIn) viewModel.openOneDriveBrowser()
-                    else viewModel.signInOneDrive(context as Activity)
-                },
-            )
-            Spacer(Modifier.height(16.dp))
-
-            // Google Drive
-            ImportButton(
-                icon = Icons.Filled.CloudUpload,
-                label = "Google Drive",
-                subtitle = viewModel.googleDrive.currentAccountEmail ?: "Sign in ด้วย Google account",
-                badge = if (viewModel.googleDrive.isSignedIn) "Connected" else null,
-                onClick = {
-                    if (viewModel.googleDrive.isSignedIn) viewModel.openGoogleDriveBrowser()
-                    else googleSignInLauncher.launch(viewModel.googleDrive.getSignInIntent())
-                },
-            )
 
             Spacer(Modifier.height(40.dp))
 
@@ -145,8 +120,8 @@ fun HomeScreen(viewModel: MainViewModel, onSessionLoaded: () -> Unit) {
         }
     }
 
-    // Cloud folder browser overlays
-    CloudFolderBrowserHost(viewModel = viewModel, state = folderState)
+    // Folder browser overlay
+    LocalFolderBrowserHost(viewModel = viewModel, state = folderState)
 }
 
 @Composable

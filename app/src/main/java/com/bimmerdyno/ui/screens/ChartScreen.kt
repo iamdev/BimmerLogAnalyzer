@@ -1,4 +1,4 @@
-package com.bimmerloganalyzer.ui.screens
+package com.bimmerdyno.ui.screens
 
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.horizontalScroll
@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ZoomOutMap
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,23 +16,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bimmerloganalyzer.data.DynoPoint
-import com.bimmerloganalyzer.data.LogSession
-import com.bimmerloganalyzer.data.OBDDataPoint
-import com.bimmerloganalyzer.ui.components.ChartSeries
-import com.bimmerloganalyzer.ui.components.LocalZoomAxis
-import com.bimmerloganalyzer.ui.components.OBDLineChart
-import com.bimmerloganalyzer.ui.components.ZoomAxis
-import com.bimmerloganalyzer.ui.theme.*
-import com.bimmerloganalyzer.viewmodel.ChartType
-import com.bimmerloganalyzer.viewmodel.MainViewModel
-import com.bimmerloganalyzer.viewmodel.PowerUnit
+import com.bimmerdyno.data.DynoPoint
+import com.bimmerdyno.data.LogSession
+import com.bimmerdyno.data.OBDDataPoint
+import com.bimmerdyno.ui.components.ChartSeries
+import com.bimmerdyno.ui.components.LocalZoomAxis
+import com.bimmerdyno.ui.components.OBDLineChart
+import com.bimmerdyno.ui.components.ZoomAxis
+import com.bimmerdyno.ui.theme.*
+import com.bimmerdyno.viewmodel.ChartType
+import com.bimmerdyno.viewmodel.MainViewModel
+import com.bimmerdyno.viewmodel.PowerUnit
 import com.github.mikephil.charting.data.Entry
 import java.time.LocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Unit) {
+fun ChartScreen(
+    viewModel: MainViewModel,
+    session: LogSession,
+    onBack: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val selectedChart by viewModel.selectedChartType.collectAsState()
     val powerUnit by viewModel.powerUnit.collectAsState()
     val points = remember(session) { session.sampledPoints() }
@@ -68,6 +74,7 @@ fun ChartScreen(viewModel: MainViewModel, session: LogSession, onBack: () -> Uni
                 },
                 actions = {
                     IconButton(onClick = onBack) { Icon(Icons.Filled.FolderOpen, "เปิดไฟล์อื่น") }
+                    IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, "ตั้งค่า") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,

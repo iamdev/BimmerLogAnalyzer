@@ -4,7 +4,7 @@
          android:Theme.Material.Light is guaranteed available on API 21+ (minSdk 26).
          We disable title/action bar explicitly rather than using a NoTitleBar variant
          that may not exist on all API levels. -->
-    <style name="Theme.BimmerLogAnalyzer" parent="android:Theme.Material.Light">
+    <style name="Theme.BimmerDyno" parent="android:Theme.Material.Light">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
         <item name="android:windowBackground">@android:color/black</item>

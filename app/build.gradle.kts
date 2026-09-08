@@ -5,19 +5,16 @@ plugins {
 }
 
 android {
-    namespace = "com.bimmerloganalyzer"
+    namespace = "com.bimmerdyno"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.bimmerloganalyzer"
+        applicationId = "com.bimmerdyno"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // Microsoft MSAL redirect URI
-        manifestPlaceholders["msalRedirectUri"] = "msauth://com.bimmerloganalyzer/PLACEHOLDER_HASH"
     }
 
     signingConfigs {
@@ -75,13 +72,6 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.documentfile)
     implementation(libs.mpandroidchart)
-    implementation(libs.msal) {
-        exclude(group = "com.microsoft.device.display")  // Surface Duo SDK — not in public Maven
-    }
-    implementation(libs.credentials.play.services.auth)
-    implementation(libs.google.auth.api.phone)
-    implementation(libs.google.api.client.android)
-    implementation(libs.google.api.services.drive)
     implementation(libs.kotlinx.coroutines.android)
     debugImplementation(libs.androidx.ui.tooling)
 }

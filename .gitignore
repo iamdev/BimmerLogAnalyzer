@@ -14,10 +14,6 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# Android credentials — do NOT commit
-app/google-services.json
-app/src/main/res/raw/msal_config.json
-
 # IDE
 .idea/
 *.iws

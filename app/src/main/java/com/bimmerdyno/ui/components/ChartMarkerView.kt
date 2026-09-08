@@ -1,8 +1,8 @@
-package com.bimmerloganalyzer.ui.components
+package com.bimmerdyno.ui.components
 
 import android.content.Context
 import android.widget.TextView
-import com.bimmerloganalyzer.R
+import com.bimmerdyno.R
 import com.github.mikephil.charting.components.MarkerView
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.highlight.Highlight
