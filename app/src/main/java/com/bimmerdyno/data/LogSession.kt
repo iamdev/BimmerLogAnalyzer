@@ -29,11 +29,6 @@ data class LogSession(
         return points.filterIndexed { i, _ -> i % step == 0 }
     }
 
-    /** Points during full-throttle pull (throttle >= 95%) for dyno-style curve */
-    fun fullThrottlePoints(): List<OBDDataPoint> =
-        points.filter { it.throttlePct >= 95f && it.rpm > 500f }
-            .sortedBy { it.rpm }
-
     /**
      * Dyno-style power/torque envelope vs RPM, binned every [binRpm] and
      * **estimate-filled**. Each RPM bin keeps the **maximum torque** seen at that

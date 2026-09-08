@@ -105,7 +105,7 @@ sealed class FolderBrowseState {
     data class Error(val message: String)
 }
 
-enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, DYNO_ESTIMATE, BOOST_TIME, TEMP_TIME }
+enum class ChartType { SPEED_TIME, TORQUE_TIME, POWER_TIME, DYNO_CURVE, BOOST_TIME, TEMP_TIME }
 ```
 
 StateFlows: `uiState`, `folderBrowseState`, `selectedChartType`, `powerUnit`,
@@ -158,8 +158,8 @@ Wraps `List<OBDDataPoint>` with the source filename. Computed stats:
 `displayLabel` / `shortLabel` (formatted datetime from filename).
 
 - `sampledPoints(maxPoints = 1000)` — downsamples for chart performance.
-- `fullThrottlePoints()` — filters `throttlePct ≥ 95` and `rpm > 500`, sorted by RPM
-  (used for dyno curve).
+- `dynoCurve(binRpm = 250)` — RPM-binned max-torque envelope with interpolated
+  gaps (`DynoPoint`, `estimated` flag) for the Dyno chart.
 
 ### CSV Parsing
 
@@ -267,8 +267,7 @@ read a header from any CSV via `CsvParser.readHeader()` without a full parse.
 | Speed vs Time | Speed (km/h) |
 | Torque vs Time | Torque (Nm) left + RPM/10 right |
 | Power vs Time | Power in selected unit (PS/HP toggle) |
-| Dyno Curve | RPM (X) vs Torque & Power (full-throttle only) |
-| Dyno+Est | RPM-binned envelope; measured = circles, estimated = dashed |
+| Dyno Curve | RPM (X) vs Torque & Power — estimate-filled envelope; measured points get a solid line + circles, interpolated gaps drawn dashed |
 | Boost vs Time | Boost (bar) + Exhaust pressure (bar) |
 | Temp vs Time | Engine, Transmission, Ambient (°C) |
 
@@ -278,9 +277,10 @@ read a header from any CSV via `CsvParser.readHeader()` without a full parse.
   per row**, carrying prior values forward, so many raw rows share the same
   `Time`; only the last row of each consecutive equal-`Time` run is a complete
   sample. If `Time` is absent/constant raw rows are returned unchanged.
-- **Dyno estimate** (`LogSession.dynoCurve`): full-throttle points are binned by
-  RPM (max torque per bin = envelope); empty bins are linearly interpolated and
-  flagged `estimated` so the UI draws them dashed vs circles for measured.
+- **Dyno estimate** (`LogSession.dynoCurve`): all points with `rpm > 500` and
+  `torque > 0` are binned by RPM (max torque per bin = envelope); empty bins are
+  linearly interpolated and flagged `estimated`. The single Dyno tab draws the
+  measured points as a solid line + circles and the interpolated gaps dashed.
 
 ## CI (`.github/workflows/android-ci.yml`)
 
